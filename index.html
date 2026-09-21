@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f2a44">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Consignas">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Consignas GECEM</title>
+<style>
+  :root{--azul:#0f2a44;--azul2:#1c4f80;--rojo:#c62828;--rojo-bg:#fdecea;--verde:#1b7f3b;--verde-bg:#e6f4ea;--ambar:#b26a00;--ambar-bg:#fff4e0;--gris:#6b7280;--gris-bg:#f3f4f6;--borde:#d1d5db;--txt:#1f2937}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:#eef1f5;color:var(--txt);font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:16px;line-height:1.35}
+  .pantalla{display:none;min-height:100vh}.pantalla.activa{display:block}
+  header{background:var(--azul);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+  header h1{font-size:17px;margin:0;font-weight:700}header small{display:block;font-size:12px;opacity:.85;font-weight:400}
+  .icono{background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:10px;width:40px;height:40px;font-size:20px;display:flex;align-items:center;justify-content:center}
+  main{padding:14px 14px 40px;max-width:560px;margin:0 auto}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:var(--gris);margin:18px 0 8px}
+  .card{background:#fff;border:1px solid var(--borde);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .card.pend{border:2px solid var(--rojo);background:var(--rojo-bg)}
+  .card.abierta{border:2px solid var(--azul2);background:#eaf2fb}
+  .card.ok{border-color:#b7dfc3;background:var(--verde-bg)}
+  .card.tarde{border-color:#f1d29a;background:var(--ambar-bg)}
+  .card.falla{border-color:#e6b3b0;background:#fbf0ef;opacity:.9}
+  .card.prox{opacity:.75}
+  .fila{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .titulo{font-weight:700;font-size:17px}.inst{font-size:14px;color:#374151;margin-top:4px}
+  .hora{font-weight:800;font-size:22px;color:var(--azul)}
+  .etiqueta{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;margin-top:6px}
+  .etiqueta.rojo{background:var(--rojo);color:#fff}.etiqueta.verde{background:var(--verde);color:#fff}.etiqueta.ambar{background:var(--ambar);color:#fff}.etiqueta.gris{background:#d1d5db;color:#111}.etiqueta.azul{background:var(--azul2);color:#fff}
+  .btn{display:block;width:100%;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:700;color:#fff;background:var(--azul2);margin-top:12px;cursor:pointer}
+  .btn.rojo{background:var(--rojo)}.btn.verde{background:var(--verde)}.btn.wa{background:#128c7e}.btn.sec{background:#fff;color:var(--azul2);border:2px solid var(--azul2)}.btn.chico{padding:10px;font-size:15px;margin-top:8px}
+  .btn:disabled{opacity:.5}
+  input,select,textarea{width:100%;border:1.5px solid var(--borde);border-radius:10px;padding:12px;font-size:17px;background:#fff;font-family:inherit}
+  label{display:block;font-size:13px;font-weight:700;color:#374151;margin:12px 0 4px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:2px solid var(--borde);background:#fff;border-radius:999px;padding:10px 16px;font-size:16px;font-weight:700;color:#374151}
+  .chip.sel{background:var(--azul);border-color:var(--azul);color:#fff}
+  .centro{text-align:center}.mini{font-size:13px;color:var(--gris)}
+  .error{background:var(--rojo-bg);color:#7f1d1d;border:1px solid #f5c2c0;border-radius:10px;padding:10px;margin-top:10px;font-size:14px;display:none}
+  .aviso{background:var(--ambar-bg);border:1px solid #f1d29a;border-radius:10px;padding:10px;font-size:14px;margin-top:10px}
+  .preview{width:100%;max-height:52vh;object-fit:contain;border-radius:12px;background:#111;display:none;margin-top:10px}
+  .thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--borde);background:#ddd}
+  .logo{font-size:34px;font-weight:900;color:var(--azul);letter-spacing:-1px;margin-top:40px}
+  .spinner{width:36px;height:36px;border:4px solid #dbe3ee;border-top-color:var(--azul2);border-radius:50%;animation:g 1s linear infinite;margin:20px auto}@keyframes g{to{transform:rotate(360deg)}}
+  .cargando{position:fixed;inset:0;background:rgba(255,255,255,.75);display:none;align-items:center;justify-content:center;z-index:50;flex-direction:column;font-weight:700;color:var(--azul)}
+  .cargando.on{display:flex}
+  .tabs{display:flex;background:#fff;border-bottom:1px solid var(--borde);position:sticky;top:68px;z-index:4}
+  .tab{flex:1;text-align:center;padding:12px 2px;font-weight:700;font-size:13px;color:var(--gris);border-bottom:3px solid transparent;white-space:nowrap}
+  .tab.sel{color:var(--azul2);border-bottom-color:var(--azul2)}
+  .vista{display:none}.vista.sel{display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}th,td{border:1px solid var(--borde);padding:6px;text-align:left;vertical-align:top}th{background:var(--gris-bg);font-size:12px}
+  .cel{display:block;text-align:center;border-radius:6px;padding:6px 2px;font-weight:800;font-size:12px;color:#fff}
+  .cel.cumplida{background:var(--verde)}.cel.tarde{background:var(--ambar)}.cel.fallida,.cel.pendiente{background:var(--rojo)}.cel.na{background:#e5e7eb;color:#9ca3af}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+  .kpi{background:#fff;border:1px solid var(--borde);border-radius:12px;padding:10px;text-align:center}.kpi b{display:block;font-size:26px}.kpi span{font-size:12px;color:var(--gris)}
+  .dias{display:flex;gap:6px}.dia{flex:1;text-align:center;padding:10px 0;border:2px solid var(--borde);border-radius:10px;font-weight:800;background:#fff}.dia.sel{background:var(--azul2);border-color:var(--azul2);color:#fff}
+  .dos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .lista-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--borde);background:#fff}
+  .lista-item:first-child{border-radius:12px 12px 0 0}.lista-item:last-child{border-radius:0 0 12px 12px;border-bottom:0}
+  .lista{border:1px solid var(--borde);border-radius:12px;margin-bottom:10px}
+  .sw{width:auto}
+  a{color:var(--azul2)}
+  .contador{font-size:14px;font-weight:700;color:var(--rojo)}
+  .minis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.mini-f{position:relative}.mini-f img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--borde);display:block}
+  .mini-f button{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.65);color:#fff;border:0;border-radius:50%;width:28px;height:28px;font-size:16px}
+</style>
+</head>
+<body>
+
+<div class="cargando" id="cargando"><div class="spinner"></div><div id="cargando-txt">Un momento…</div></div>
+
+<!-- ===================== CLAVE DE CASETA ===================== -->
+<div class="pantalla" id="p-clave">
+  <main class="centro">
+    <div class="logo">GECEM</div>
+    <div style="font-weight:700;font-size:18px;color:var(--azul2)">Consignas de vigilancia</div>
+    <p class="mini" style="margin-top:30px">Escribe la clave de la caseta para activar este celular.</p>
+    <input id="clave" type="tel" inputmode="numeric" placeholder="Clave de caseta" style="text-align:center;font-size:24px;letter-spacing:6px">
+    <button class="btn" onclick="entrar()">Entrar</button>
+    <div class="error" id="err-clave"></div>
+    <p class="mini" style="margin-top:40px">¿Eres supervisor? <a href="#" onclick="irAdmin();return false">Entrar como administrador</a></p>
+  </main>
+</div>
+
+<!-- ===================== INICIO (GUARDIA) ===================== -->
+<div class="pantalla" id="p-inicio">
+  <header>
+    <div><h1 id="h-caseta">Caseta</h1><small id="h-fecha">—</small></div>
+    <div style="display:flex;gap:8px"><button class="icono" onclick="cargarEstado(true)" title="Actualizar">⟳</button><button class="icono" onclick="irAdmin()" title="Administrador">⚙</button></div>
+  </header>
+  <main>
+    <h2>¿Quién está de turno?</h2>
+    <div class="chips" id="chips-guardia"></div>
+
+    <div id="sec-pend"><h2 style="color:var(--rojo)">Pendientes — sube la foto</h2><div id="lista-pend"></div></div>
+    <div id="sec-abiertas"><h2>Ya se pueden subir</h2><div id="lista-abiertas"></div></div>
+    <div id="sec-prox"><h2>Más tarde hoy</h2><div id="lista-prox"></div></div>
+    <div id="sec-hechas"><h2>Hechas hoy</h2><div id="lista-hechas"></div></div>
+
+    <h2>📝 Notas de la jornada</h2>
+    <div class="card">
+      <div class="mini">Anota lo importante del turno: reportes de residentes, fallas, visitas raras, paquetería, lo que el siguiente turno o supervisión deba saber.</div>
+      <textarea id="n-texto" rows="3" placeholder="Ej. Casa 12 reportó fuga de agua en la calle; se avisó a mantenimiento." style="margin-top:8px"></textarea>
+      <input type="file" id="n-archivo" accept="image/*" multiple style="display:none" onchange="notaFotoElegida(this)">
+      <div id="n-minis" class="minis"></div>
+      <div class="dos">
+        <button class="btn sec chico" onclick="document.getElementById('n-archivo').click()">📷 Foto (opcional)</button>
+        <button class="btn chico" onclick="guardarNota()">Guardar nota</button>
+      </div>
+      <label style="margin-top:8px"><input type="checkbox" id="n-importante" class="sw"> Es urgente: avisar ahora al supervisor por WhatsApp</label>
+      <div class="error" id="err-nota"></div>
+    </div>
+    <div id="lista-notas"></div>
+
+    <h2>🏊 Registro de alberca</h2>
+    <div class="card">
+      <div class="mini">Cada vez que haya personas en la alberca, ve, pregunta de qué casa son y regístralo aquí. Así, si hay un desperfecto, sabemos quién estuvo. Solo casa y número de personas; no pidas nombres ni otros datos.</div>
+      <div class="dos">
+        <div><label>Casa</label><input id="al-casa" placeholder="Ej. 12"></div>
+        <div><label>Personas</label><input id="al-personas" type="number" inputmode="numeric" placeholder="Ej. 4"></div>
+      </div>
+      <label>Observación (opcional)</label><input id="al-texto" placeholder="Ej. 2 adultos y 2 niños, con invitados">
+      <button class="btn chico" onclick="guardarAlberca()">Registrar en alberca</button>
+      <div class="error" id="err-alberca"></div>
+    </div>
+    <div id="lista-alberca"></div>
+
+    <div id="sec-recientes"><h2>Días anteriores</h2><div id="lista-recientes"></div></div>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.0 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+  </main>
+</div>
+
+<!-- ===================== TOMAR FOTO ===================== -->
+<div class="pantalla" id="p-foto">
+  <header><div><h1 id="f-titulo">Consigna</h1><small id="f-sub"></small></div><button class="icono" onclick="ir('p-inicio')">✕</button></header>
+  <main>
+    <div class="card"><div class="inst" id="f-inst"></div><div class="mini" style="margin-top:8px">Sube la evidencia como: <b id="f-guardia"></b></div></div>
+    <input type="file" id="archivo" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this)">
+    <input type="file" id="galeria" accept="image/*" multiple style="display:none" onchange="fotoElegida(this)">
+    <div class="dos">
+      <button class="btn rojo" id="btn-tomar" onclick="document.getElementById('archivo').click()">📷 Tomar foto</button>
+      <button class="btn sec" onclick="document.getElementById('galeria').click()">🖼 De la galería</button>
+    </div>
+    <div class="mini" style="margin-top:6px" id="f-ayuda">Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.</div>
+    <div id="f-miniaturas" class="minis"></div>
+    <div id="f-detalle" style="display:none">
+      <label id="f-nota-label">Nota (opcional)</label>
+      <textarea id="nota" rows="3" placeholder="Ej. 3 autos, uno sin placas"></textarea>
+      <button class="btn verde" id="btn-enviar" onclick="enviar()">✔ Enviar evidencia</button>
+    </div>
+    <div class="error" id="err-foto"></div>
+  </main>
+</div>
+
+<!-- ===================== LISTO ===================== -->
+<div class="pantalla" id="p-listo">
+  <main class="centro">
+    <div style="font-size:70px;margin-top:40px">✅</div>
+    <div style="font-size:22px;font-weight:800" id="l-titulo">Evidencia guardada</div>
+    <div id="l-estado" style="margin-top:6px"></div>
+    <div id="l-grupo" style="display:none">
+      <div class="aviso" id="l-aviso-grupo" style="text-align:left">Esta consigna la pide la mesa directiva. Mándala al grupo de WhatsApp <b id="l-nombre-grupo"></b>. (También puedes reenviarla después desde "Hechas hoy".)</div>
+      <button class="btn wa" id="btn-imagen" onclick="compartirImagen()" style="display:none">📲 Enviar la foto por WhatsApp</button>
+      <button class="btn wa" id="btn-link" onclick="compartir()">📲 Enviar por WhatsApp</button>
+      <div class="mini" id="l-ayuda-compartir" style="margin-top:6px"></div>
+      <div class="mini" id="l-compartido" style="margin-top:8px"></div>
+    </div>
+    <button class="btn sec" onclick="ir('p-inicio');cargarEstado(true)">Volver a consignas</button>
+  </main>
+</div>
+
+<!-- ===================== ADMIN: NIP ===================== -->
+<div class="pantalla" id="p-nip">
+  <header><div><h1>Administrador</h1><small>Consignas GECEM</small></div><button class="icono" onclick="volverDeAdmin()">✕</button></header>
+  <main class="centro">
+    <p class="mini" style="margin-top:30px">NIP de administrador</p>
+    <input id="nip" type="password" inputmode="numeric" placeholder="NIP" style="text-align:center;font-size:24px;letter-spacing:6px">
+    <button class="btn" onclick="entrarAdmin()">Entrar</button>
+    <div class="error" id="err-nip"></div>
+  </main>
+</div>
+
+<!-- ===================== ADMIN ===================== -->
+<div class="pantalla" id="p-admin">
+  <header><div><h1>Administrador</h1><small id="a-sub">Consignas GECEM</small></div><button class="icono" onclick="volverDeAdmin()">✕</button></header>
+  <div class="tabs">
+    <div class="tab sel" data-t="cump" onclick="tab('cump')">Cumplim.</div>
+    <div class="tab" data-t="cons" onclick="tab('cons')">Consignas</div>
+    <div class="tab" data-t="bit" onclick="tab('bit')">Bitácora</div>
+    <div class="tab" data-t="equipo" onclick="tab('equipo')">Equipo</div>
+    <div class="tab" data-t="ajustes" onclick="tab('ajustes')">Ajustes</div>
+  </div>
+  <main>
+    <!-- Cumplimiento -->
+    <div class="vista sel" id="v-cump">
+      <div class="dos"><div><label>Desde</label><input type="date" id="r-desde"></div><div><label>Hasta</label><input type="date" id="r-hasta"></div></div>
+      <label>Caseta</label><select id="r-caseta"></select>
+      <button class="btn chico" onclick="cargarReporte()">Ver cumplimiento</button>
+      <div id="r-kpis" class="kpis"></div>
+      <div id="r-tabla" style="overflow-x:auto"></div>
+      <div id="r-guardias"></div>
+      <button class="btn sec chico" id="btn-pdf" onclick="descargarPDF()" style="display:none">⬇ Descargar PDF de este periodo</button>
+      <div class="error" id="err-rep"></div>
+    </div>
+
+    <!-- Consignas -->
+    <div class="vista" id="v-cons">
+      <button class="btn chico" onclick="editarConsigna(null)">＋ Nueva consigna</button>
+      <div class="lista" id="lista-cons"></div>
+      <div id="form-cons" class="card" style="display:none">
+        <div class="titulo" id="fc-titulo">Nueva consigna</div>
+        <label>Caseta</label><select id="c-caseta"></select>
+        <label>Título</label><input id="c-titulo" placeholder="Ej. Autos en estacionamiento">
+        <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3" placeholder="Ej. Foto general del estacionamiento de visitas mostrando los autos"></textarea>
+        <label>Tipo de evidencia</label>
+        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option></select>
+        <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
+        <label>Hora del aviso (24 h)</label><input id="c-hora" type="time">
+        <label>Días</label>
+        <div class="dias" id="c-dias"></div>
+        <div class="dos">
+          <div><label>Minutos para cumplir</label><input id="c-tol" type="number" value="30"><div class="mini">Después de esto cuenta como "tarde"</div></div>
+          <div><label>Límite (min)</label><input id="c-lim" type="number" value="120"><div class="mini">Después de esto cuenta como "no cumplida"</div></div>
+        </div>
+        <div class="dos">
+          <div><label>Recordar cada (min)</label><input id="c-cada" type="number" value="8"></div>
+          <div><label>Máximo de avisos</label><input id="c-max" type="number" value="3"><div class="mini">Al llegar aquí te avisa a ti</div></div>
+        </div>
+        <label>Se puede subir desde (min antes)</label><input id="c-ant" type="number" value="60">
+        <label><input type="checkbox" id="c-grupo" class="sw"> Pedir que la manden al grupo de la mesa directiva</label>
+        <label><input type="checkbox" id="c-activa" class="sw" checked> Activa</label>
+        <button class="btn verde chico" onclick="guardarConsigna()">Guardar</button>
+        <button class="btn sec chico" onclick="document.getElementById('form-cons').style.display='none'">Cancelar</button>
+        <button class="btn rojo chico" id="btn-borrar-cons" onclick="borrarConsigna()" style="display:none">Borrar consigna</button>
+        <div class="error" id="err-cons"></div>
+      </div>
+    </div>
+
+    <!-- Bitácora -->
+    <div class="vista" id="v-bit">
+      <div class="dos"><div><label>Desde</label><input type="date" id="b-desde"></div><div><label>Hasta</label><input type="date" id="b-hasta"></div></div>
+      <label>Caseta</label><select id="b-caseta"></select>
+      <button class="btn chico" onclick="cargarBitacora()">Ver bitácora</button>
+      <div id="b-notas"></div>
+      <div id="b-alberca"></div>
+      <div class="mini" style="margin-top:10px">Las notas y el registro de alberca también salen en el PDF diario. Datos de residentes (casa, personas): solo para supervisión del servicio; no difundir.</div>
+      <div class="error" id="err-bit"></div>
+    </div>
+
+    <!-- Equipo -->
+    <div class="vista" id="v-equipo">
+      <h2>Guardias</h2>
+      <div class="lista" id="lista-guardias"></div>
+      <div class="card">
+        <label>Nombre del guardia</label><input id="g-nombre" placeholder="Nombre y apellido">
+        <label>Caseta</label><select id="g-caseta"></select>
+        <button class="btn chico" onclick="guardarGuardia()">Agregar guardia</button>
+      </div>
+      <h2>Casetas</h2>
+      <div id="lista-casetas"></div>
+      <div class="error" id="err-equipo"></div>
+    </div>
+
+    <!-- Ajustes -->
+    <div class="vista" id="v-ajustes">
+      <div class="card">
+        <div class="titulo">Avisos al administrador</div>
+        <label>Tu WhatsApp (con +52)</label><input id="j-wa" placeholder="+52442...">
+        <label>Tu apikey de CallMeBot</label><input id="j-key" placeholder="123456">
+        <label>Nombre del grupo de la mesa directiva</label><input id="j-grupo" placeholder="Mesa Directiva">
+        <label>Hora del reporte diario</label><input id="j-hora" type="number" min="0" max="23" value="7"><div class="mini">Para cambiar la hora del reporte hay que volver a ejecutar <b>instalar</b> en el editor.</div>
+        <label>NIP de administrador</label><input id="j-nip" type="text">
+        <button class="btn chico" onclick="guardarAjustes()">Guardar ajustes</button>
+        <button class="btn sec chico" onclick="probarWA('admin')">Probar aviso a mi WhatsApp</button>
+      </div>
+      <div class="card">
+        <div class="titulo">Link de la app</div>
+        <div class="mini" style="word-break:break-all" id="j-url"></div>
+        <div class="mini" style="margin-top:6px">En el celular de la caseta: abrir el link en Chrome → menú ⋮ → "Instalar app" (o "Agregar a pantalla de inicio"). Este es el link que va en los avisos de WhatsApp.</div>
+      </div>
+      <div class="error" id="err-aj"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ============================================================
+var URL_APP = 'https://script.google.com/macros/s/AKfycbzn2N3ZLS5FOkd2zQk-f1upuXtaLaYulNNJb4Xoj6V9k6hZgHP8mA08ndqV1Ju788-2nw/exec';
+var S = { token: null, caseta: null, guardia: null, adminToken: null, estado: null, actual: null, blobs: [], modoAgregar: false, ultimo: null, admin: null, notaBlobs: [] };
+var DIAS = ['L','M','X','J','V','S','D'], DIAS_N = ['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+
+// ---------- transporte ----------
+function llamar(accion, params) {
+  return new Promise(function (res, rej) {
+    var listo = function (r) { r && r.ok ? res(r) : rej(new Error((r && r.error) || 'Error')); };
+    if (window.google && google.script && google.script.run) {
+      // Abierta desde el link de Apps Script
+      google.script.run.withSuccessHandler(function (txt) {
+        var r; try { r = JSON.parse(txt); } catch (e) { return rej(new Error('Respuesta inválida')); }
+        listo(r);
+      }).withFailureHandler(function (e) { rej(new Error(e.message || 'Sin conexión')); }).llamar(accion, params || {});
+    } else if (/^https:\/\/script\.google\.com\//.test(URL_APP)) {
+      // App instalable (GitHub Pages): POST directo al servidor de Apps Script; si falla, JSONP por GET
+      fetch(URL_APP, { method: 'POST', body: JSON.stringify({ accion: accion, params: params || {} }) })
+        .then(function (r) { return r.json(); }).then(listo)
+        .catch(function () { jsonp(accion, params).then(listo).catch(rej); });
+    } else {
+      // Modo prueba local
+      fetch('/api', { method: 'POST', body: JSON.stringify({ accion: accion, params: params || {} }) }).then(function (r) { return r.json(); })
+        .then(listo).catch(rej);
+    }
+  });
+}
+var cbN = 0;
+function jsonp(accion, params) {
+  return new Promise(function (res, rej) {
+    var cb = 'cb' + (++cbN) + '_' + Date.now(), s = document.createElement('script');
+    var t = setTimeout(function () { limpia(); rej(new Error('No hubo respuesta. Revisa el internet del celular.')); }, 30000);
+    function limpia() { clearTimeout(t); try { delete window[cb]; } catch (e) { window[cb] = undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
+    window[cb] = function (r) { limpia(); res(r); };
+    s.src = URL_APP + '?api=' + encodeURIComponent(accion) + '&callback=' + cb + '&p=' + encodeURIComponent(JSON.stringify(params || {}));
+    s.onerror = function () { limpia(); rej(new Error('No se pudo conectar. Revisa el internet del celular.')); };
+    document.body.appendChild(s);
+  });
+}
+function cargando(on, txt) { document.getElementById('cargando').classList.toggle('on', !!on); if (txt) document.getElementById('cargando-txt').textContent = txt; }
+function ir(id) { document.querySelectorAll('.pantalla').forEach(function (p) { p.classList.remove('activa'); }); document.getElementById(id).classList.add('activa'); window.scrollTo(0, 0); }
+function err(id, msg) { var e = document.getElementById(id); e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+
+// ---------- arranque ----------
+function arrancar() {
+  S.token = ls('cg_token'); S.guardia = ls('cg_guardia');
+  if (!S.token) { ir('p-clave'); return; }
+  cargando(true, 'Cargando…');
+  llamar('sesion', { token: S.token }).then(function (r) { S.caseta = r.caseta; ir('p-inicio'); return cargarEstado(); })
+    .catch(function () { ls('cg_token', null); ir('p-clave'); }).finally(function () { cargando(false); });
+}
+function entrar() {
+  err('err-clave', '');
+  var clave = document.getElementById('clave').value.trim();
+  if (!clave) return err('err-clave', 'Escribe la clave.');
+  cargando(true, 'Entrando…');
+  llamar('entrar', { clave: clave }).then(function (r) {
+    S.token = r.token; S.caseta = r.caseta; ls('cg_token', r.token);
+    ir('p-inicio'); return cargarEstado();
+  }).catch(function (e) { err('err-clave', e.message); }).finally(function () { cargando(false); });
+}
+function salir() { if (!confirm('¿Quitar esta caseta del celular?')) return; ls('cg_token', null); ls('cg_guardia', null); S.token = null; ir('p-clave'); }
+
+// ---------- estado del día ----------
+var timerEstado = null;
+function cargarEstado(manual) {
+  if (manual) cargando(true, 'Actualizando…');
+  return llamar('estado', { token: S.token }).then(function (r) {
+    S.estado = r; S.caseta = r.caseta; pintarInicio();
+  }).catch(function (e) { alert(e.message); }).finally(function () {
+    cargando(false);
+    clearTimeout(timerEstado); timerEstado = setTimeout(function () { if (document.getElementById('p-inicio').classList.contains('activa')) cargarEstado(); }, 60000);
+  });
+}
+function pintarInicio() {
+  var r = S.estado;
+  document.getElementById('h-caseta').textContent = r.caseta.nombre;
+  document.getElementById('h-fecha').textContent = r.hoy_legible + ' · ' + r.hora;
+  // guardias
+  var ch = document.getElementById('chips-guardia'); ch.innerHTML = '';
+  if (S.guardia && !r.caseta.guardias.some(function (g) { return g.nombre === S.guardia; })) S.guardia = null;
+  r.caseta.guardias.forEach(function (g) {
+    var b = document.createElement('button'); b.className = 'chip' + (S.guardia === g.nombre ? ' sel' : ''); b.textContent = g.nombre;
+    b.onclick = function () { S.guardia = g.nombre; ls('cg_guardia', g.nombre); pintarInicio(); }; ch.appendChild(b);
+  });
+  var grupos = { pendiente: [], abierta: [], proxima: [], hecha: [] };
+  r.items.forEach(function (it) {
+    if (it.estado === 'pendiente' || it.estado === 'fallida') grupos.pendiente.push(it);
+    else if (it.estado === 'abierta') grupos.abierta.push(it);
+    else if (it.estado === 'proxima') grupos.proxima.push(it);
+    else grupos.hecha.push(it);
+  });
+  pintarLista('lista-pend', 'sec-pend', grupos.pendiente, tarjetaPend);
+  pintarLista('lista-abiertas', 'sec-abiertas', grupos.abierta, tarjetaAbierta);
+  pintarLista('lista-prox', 'sec-prox', grupos.proxima, tarjetaProx);
+  pintarLista('lista-hechas', 'sec-hechas', grupos.hecha, tarjetaHecha);
+  var rec = document.getElementById('lista-recientes'); rec.innerHTML = '';
+  document.getElementById('sec-recientes').style.display = r.recientes.length ? 'block' : 'none';
+  r.recientes.forEach(function (e) { rec.appendChild(tarjetaHecha(e, e.fecha)); });
+  pintarBitacora(r.bitacora || []);
+}
+// ---------- bitácora: notas de la jornada y alberca ----------
+function pintarBitacora(lista) {
+  var ln = document.getElementById('lista-notas'), la = document.getElementById('lista-alberca'); ln.innerHTML = ''; la.innerHTML = '';
+  lista.forEach(function (b) {
+    var d = document.createElement('div'); d.className = 'card' + (b.importante ? ' tarde' : '');
+    if (b.tipo === 'alberca') {
+      d.innerHTML = '<div class="fila"><div><div class="titulo">Casa ' + esc(b.casa) + ' · ' + esc(b.personas || '?') + ' persona' + (String(b.personas) === '1' ? '' : 's') + '</div><div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.texto ? ' · ' + esc(b.texto) : '') + '</div></div></div>';
+      la.appendChild(d);
+    } else {
+      d.innerHTML = '<div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE, avisado</b>' : '') + '</div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
+        ((b.fotos || []).length ? '<div class="minis">' + b.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '');
+      ln.appendChild(d);
+    }
+  });
+}
+function notaFotoElegida(inp) {
+  var files = Array.prototype.slice.call(inp.files || []).slice(0, 4 - S.notaBlobs.length); if (!files.length) return;
+  cargando(true, 'Preparando foto…');
+  var cadena = Promise.resolve();
+  files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1280, 0.72).then(function (b) { S.notaBlobs.push(b); }); }); });
+  cadena.then(pintarMinisNota).catch(function (e) { err('err-nota', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
+}
+function pintarMinisNota() {
+  var g = document.getElementById('n-minis'); g.innerHTML = '';
+  S.notaBlobs.forEach(function (b, i) {
+    var d = document.createElement('div'); d.className = 'mini-f';
+    var im = document.createElement('img'); im.src = URL.createObjectURL(b); d.appendChild(im);
+    var x = document.createElement('button'); x.textContent = '✕'; x.onclick = function () { S.notaBlobs.splice(i, 1); pintarMinisNota(); }; d.appendChild(x);
+    g.appendChild(d);
+  });
+}
+function guardarNota() {
+  err('err-nota', '');
+  if (!S.guardia) { err('err-nota', 'Primero elige quién está de turno (arriba).'); return; }
+  var texto = document.getElementById('n-texto').value.trim(); if (!texto) return err('err-nota', 'Escribe la nota.');
+  var imp = document.getElementById('n-importante').checked;
+  cargando(true, 'Guardando nota…');
+  Promise.all(S.notaBlobs.map(blobADataURL)).then(function (datas) {
+    return llamar('bitacora', { token: S.token, tipo: 'nota', guardia: S.guardia, texto: texto, importante: imp, fotos: datas });
+  }).then(function () {
+    document.getElementById('n-texto').value = ''; document.getElementById('n-importante').checked = false; S.notaBlobs = []; pintarMinisNota();
+    return cargarEstado();
+  }).catch(function (e) { err('err-nota', e.message); }).finally(function () { cargando(false); });
+}
+function guardarAlberca() {
+  err('err-alberca', '');
+  if (!S.guardia) { err('err-alberca', 'Primero elige quién está de turno (arriba).'); return; }
+  var casa = document.getElementById('al-casa').value.trim(), personas = document.getElementById('al-personas').value.trim();
+  if (!casa) return err('err-alberca', 'Escribe de qué casa son.');
+  if (!personas) return err('err-alberca', 'Escribe cuántas personas hay.');
+  cargando(true, 'Registrando…');
+  llamar('bitacora', { token: S.token, tipo: 'alberca', guardia: S.guardia, casa: casa, personas: personas, texto: document.getElementById('al-texto').value.trim() }).then(function () {
+    document.getElementById('al-casa').value = ''; document.getElementById('al-personas').value = ''; document.getElementById('al-texto').value = '';
+    return cargarEstado();
+  }).catch(function (e) { err('err-alberca', e.message); }).finally(function () { cargando(false); });
+}
+function pintarLista(idLista, idSec, items, fn) {
+  var el = document.getElementById(idLista); el.innerHTML = '';
+  document.getElementById(idSec).style.display = items.length ? 'block' : 'none';
+  items.forEach(function (it) { el.appendChild(fn(it)); });
+}
+function claseEstado(e) { return { cumplida: 'ok', tarde: 'tarde', fallida: 'falla', pendiente: 'pend' }[e] || ''; }
+function etiquetaEstado(e) {
+  var m = { cumplida: ['verde', 'CUMPLIDA'], tarde: ['ambar', 'TARDE'], fallida: ['rojo', 'NO CUMPLIDA'], pendiente: ['rojo', 'PENDIENTE'] }[e] || ['gris', e];
+  return '<span class="etiqueta ' + m[0] + '">' + m[1] + '</span>';
+}
+function tarjetaPend(it) {
+  var d = document.createElement('div'); d.className = 'card pend';
+  var falta = it.limite - it.minutos, txt;
+  if (it.estado === 'fallida') txt = 'Se venció. Súbela de todos modos: quedará como "tarde".';
+  else if (it.minutos <= it.tolerancia) txt = 'Tienes ' + (it.tolerancia - it.minutos) + ' min para que cuente a tiempo';
+  else txt = 'Ya va tarde (' + it.minutos + ' min). Súbela ahora.';
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
+    '<div class="contador" style="margin-top:8px">⏰ ' + txt + '</div>' +
+    '<button class="btn rojo">' + (esTexto(it) ? '📝 Enviar reporte ahora' : '📷 Subir foto ahora') + '</button>';
+  d.querySelector('button').onclick = function () { abrirFoto(it); };
+  return d;
+}
+function esTexto(it) { return it && it.tipo === 'texto'; }
+function tarjetaAbierta(it) {
+  var d = document.createElement('div'); d.className = 'card abierta';
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
+    '<div class="mini" style="margin-top:6px">Falta ' + (-it.minutos) + ' min para la hora, pero ya puedes ' + (esTexto(it) ? 'enviarlo' : 'subirla') + '.</div><button class="btn">' + (esTexto(it) ? '📝 Enviar reporte' : '📷 Subir foto') + '</button>';
+  d.querySelector('button').onclick = function () { abrirFoto(it); };
+  return d;
+}
+function tarjetaProx(it) {
+  var d = document.createElement('div'); d.className = 'card prox';
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="mini">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
+    '<div class="mini" style="margin-top:6px">El aviso llega a las ' + esc(it.hora) + ', pero puedes hacerla desde ahora.</div><button class="btn sec chico">' + (esTexto(it) ? '📝 Enviar reporte ahora' : '📷 Subir foto ahora') + '</button>';
+  d.querySelector('button').onclick = function () { abrirFoto(it); };
+  return d;
+}
+function tarjetaHecha(it, fecha) {
+  var d = document.createElement('div'); d.className = 'card ' + claseEstado(it.estado);
+  var conNota = it.nota && (esTexto(it) || String(it.nota).length > 40);
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="mini">' + (fecha ? esc(fecha) + ' · ' : '') + esc(it.guardia) + ' · ' + esc(String(it.subida || '').slice(11)) + (it.nota && !conNota ? ' · ' + esc(it.nota) : '') + '</div>' + etiquetaEstado(it.estado) + '</div></div>' +
+    (conNota ? '<div style="margin-top:6px;white-space:pre-wrap">' + esc(it.nota) + '</div>' : '') +
+    (it.compartir_grupo && !it.compartido ? '<div class="aviso">Falta mandarla al grupo de la mesa directiva.</div>' : '') +
+    (it.compartido ? '<div class="mini" style="margin-top:6px">✔ Enviada al grupo</div>' : '') +
+    ((it.fotos || []).length ? '<div class="minis">' + it.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '') +
+    (it.estado === 'cumplida' || it.estado === 'tarde' ? '<div class="dos"><button class="btn wa chico" data-a="wa">📲 WhatsApp' + ((it.fotos || []).length > 1 ? ' (' + it.fotos.length + ')' : '') + '</button><button class="btn sec chico" data-a="mas">➕ Agregar foto</button></div>' : '');
+  var bw = d.querySelector('[data-a="wa"]'), bm = d.querySelector('[data-a="mas"]');
+  if (bw) bw.onclick = function () { compartirEvidencia(it, fecha || (S.estado && S.estado.hoy)); };
+  if (bm) bm.onclick = function () { abrirFoto(Object.assign({}, it, { fecha: fecha || (S.estado && S.estado.hoy) }), true); };
+  return d;
+}
+// Texto que acompaña a la foto en WhatsApp (mismo formato que al subirla)
+function textoDe(it, fecha) {
+  var f = String(fecha || '').split('-').reverse().join('/');
+  var n = (it.fotos || []).length;
+  return '✅ *' + it.titulo + '* — ' + S.caseta.nombre + '\n' + f + ' ' + String(it.subida || '').slice(11) + ' · Guardia: ' + (it.guardia || '') + (it.nota ? '\n' + (esTexto(it) ? 'Reporte: ' : 'Nota: ') + it.nota : '') + (n ? '\n📷 ' + (n > 1 ? n + ' fotos: ' : 'Foto: ') + (it.foto_corta || it.foto_ver) : '');
+}
+// Compartir una evidencia ya guardada: como imagen si el celular lo permite, si no como texto+link
+var cacheFotos = {};
+function compartirEvidencia(it, fecha, textoFijo) {
+  var texto = textoFijo || textoDe(it, fecha);
+  var listo = function (blobs) {
+    var files = [];
+    try { files = blobs.map(function (b, i) { return new File([b], 'evidencia' + (i + 1) + '.jpg', { type: 'image/jpeg' }); }); } catch (e) {}
+    if (files.length && navigator.share && navigator.canShare && navigator.canShare({ files: files })) {
+      navigator.share({ files: files, text: texto, title: it.titulo }).then(function () { marcarCompartidoId(it.evidencia_id); })
+        .catch(function (e) { if (e && e.name !== 'AbortError') { abrirWhatsApp(texto); preguntarCompartido(it.evidencia_id); } });
+    } else { abrirWhatsApp(texto); preguntarCompartido(it.evidencia_id); }
+  };
+  if (!puedeCompartirImagen() || !it.foto_id) { abrirWhatsApp(texto); preguntarCompartido(it.evidencia_id); return; }
+  var ids = (it.fotos || []).map(function (f) { return f.id; }); if (!ids.length) ids = String(it.foto_id).split(',');
+  if (ids.every(function (id) { return cacheFotos[id]; })) return listo(ids.map(function (id) { return cacheFotos[id]; }));
+  cargando(true, 'Preparando foto' + (ids.length > 1 ? 's' : '') + '…');
+  blobsDe(it).then(function (blobs) { cargando(false); listo(blobs); })
+    .catch(function () { cargando(false); abrirWhatsApp(texto); preguntarCompartido(it.evidencia_id); });
+}
+function preguntarCompartido(id) { setTimeout(function () { if (confirm('¿Ya la mandaste al grupo?')) marcarCompartidoId(id); }, 2500); }
+function marcarCompartidoId(id) { llamar('compartido', { token: S.token, evidencia_id: id }).then(function () { cargarEstado(); }).catch(function () {}); }
+
+// ---------- foto ----------
+function abrirFoto(it, agregar) {
+  if (!S.guardia) { alert('Primero elige quién está de turno (arriba).'); window.scrollTo(0, 0); return; }
+  S.actual = it; S.blobs = []; S.modoAgregar = !!agregar;
+  document.getElementById('f-titulo').textContent = (agregar ? 'Agregar fotos: ' : '') + it.titulo;
+  document.getElementById('f-sub').textContent = 'Hora: ' + it.hora + ' · ' + S.caseta.nombre;
+  document.getElementById('f-inst').textContent = it.instruccion || '';
+  document.getElementById('f-guardia').textContent = S.guardia;
+  var texto = esTexto(it) && !agregar;
+  document.getElementById('f-detalle').style.display = texto ? 'block' : 'none';
+  document.getElementById('f-nota-label').textContent = texto ? 'Escribe el reporte' : 'Nota (opcional)';
+  document.getElementById('nota').placeholder = texto ? 'Ej. Faltan 2 garrafones, papel de baño y pilas para la lámpara' : 'Ej. 3 autos, uno sin placas';
+  document.getElementById('f-ayuda').textContent = texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
+  document.getElementById('btn-enviar').textContent = texto ? '✔ Enviar reporte' : '✔ Enviar evidencia';
+  document.getElementById('nota').value = '';
+  document.getElementById('archivo').value = ''; document.getElementById('galeria').value = '';
+  pintarMiniaturas();
+  err('err-foto', '');
+  ir('p-foto');
+}
+function fotoElegida(inp) {
+  var files = Array.prototype.slice.call(inp.files || []); if (!files.length) return;
+  if (S.blobs.length + files.length > 8) { files = files.slice(0, 8 - S.blobs.length); if (!files.length) return err('err-foto', 'Máximo 8 fotos por consigna.'); }
+  cargando(true, 'Preparando foto' + (files.length > 1 ? 's' : '') + '…');
+  var cadena = Promise.resolve();
+  files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1280, 0.72).then(function (b) { S.blobs.push(b); }); }); });
+  cadena.then(function () { pintarMiniaturas(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
+}
+function pintarMiniaturas() {
+  var g = document.getElementById('f-miniaturas'); g.innerHTML = '';
+  S.blobs.forEach(function (b, i) {
+    var d = document.createElement('div'); d.className = 'mini-f';
+    var im = document.createElement('img'); im.src = URL.createObjectURL(b); d.appendChild(im);
+    var x = document.createElement('button'); x.textContent = '✕'; x.onclick = function () { S.blobs.splice(i, 1); pintarMiniaturas(); }; d.appendChild(x);
+    g.appendChild(d);
+  });
+  var texto = esTexto(S.actual) && !S.modoAgregar;
+  document.getElementById('f-detalle').style.display = S.blobs.length || texto ? 'block' : 'none';
+  document.getElementById('btn-enviar').textContent = (texto ? '✔ Enviar reporte' : '✔ Enviar evidencia') + (S.blobs.length > 1 ? ' (' + S.blobs.length + ' fotos)' : '');
+  document.getElementById('btn-tomar').textContent = S.blobs.length ? '📷 Otra foto' : '📷 Tomar foto';
+}
+function blobADataURL(b) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(rd.result); }; rd.onerror = rej; rd.readAsDataURL(b); }); }
+function comprimir(file, max, calidad) {
+  return new Promise(function (res, rej) {
+    var img = new Image(); var u = URL.createObjectURL(file);
+    img.onload = function () {
+      var w = img.naturalWidth, h = img.naturalHeight, esc = Math.min(1, max / Math.max(w, h));
+      var c = document.createElement('canvas'); c.width = Math.round(w * esc); c.height = Math.round(h * esc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(function (b) { URL.revokeObjectURL(u); b ? res(b) : rej(new Error('canvas')); }, 'image/jpeg', calidad);
+    };
+    img.onerror = function () { rej(new Error('formato no soportado')); };
+    img.src = u;
+  });
+}
+function enviar() {
+  var texto = esTexto(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
+  if (!S.blobs.length && !texto) return err('err-foto', 'Primero toma la foto.');
+  if (texto && !nota) return err('err-foto', 'Escribe el reporte.');
+  var btn = document.getElementById('btn-enviar'); btn.disabled = true;
+  cargando(true, 'Enviando ' + (S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
+  Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
+    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.modoAgregar ? S.actual.fecha : undefined, nota: nota })
+      .then(function (r) {
+        // guardar en caché las fotos nuevas (las últimas N de la lista)
+        var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
+        S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
+        document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
+        document.getElementById('l-estado').innerHTML = r.estado === 'cumplida' ? '<span class="etiqueta verde">A TIEMPO</span>' : '<span class="etiqueta ambar">TARDE (' + r.minutos + ' min)</span>';
+        document.getElementById('l-grupo').style.display = 'block';
+        document.getElementById('l-aviso-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
+        document.getElementById('l-nombre-grupo').textContent = S.caseta.grupo || 'Mesa Directiva';
+        document.getElementById('l-compartido').textContent = '';
+        var conImagen = puedeCompartirImagen() && r.fotos.length > 0;
+        document.getElementById('btn-imagen').style.display = conImagen ? 'block' : 'none';
+        document.getElementById('btn-link').className = conImagen ? 'btn sec chico' : 'btn wa';
+        document.getElementById('btn-link').textContent = conImagen ? 'Enviar solo el texto con link' : '📲 Enviar por WhatsApp';
+        document.getElementById('l-ayuda-compartir').textContent = conImagen ? 'Al tocar, elige WhatsApp y luego el grupo. La foto se manda como imagen.' : 'Se abre WhatsApp con el texto y el link a la foto; elige el grupo y envía.';
+        ir('p-listo');
+      });
+  }).catch(function (e) { err('err-foto', e.message); }).finally(function () { cargando(false); btn.disabled = false; });
+}
+function compartir() {
+  var u = S.ultimo; if (!u) return;
+  abrirWhatsApp(u.r.texto_grupo);
+  setTimeout(function () { if (confirm('¿Ya la mandaste al grupo?')) marcarCompartido(u.r.evidencia_id); }, 2500);
+}
+// Junta todas las fotos de una evidencia (de caché o del servidor) y las entrega como blobs
+function blobsDe(it) {
+  var ids = (it.fotos || []).map(function (f) { return f.id; });
+  if (!ids.length && it.foto_id) ids = String(it.foto_id).split(',');
+  var cadena = Promise.resolve(), out = [];
+  ids.forEach(function (id) {
+    cadena = cadena.then(function () {
+      if (cacheFotos[id]) { out.push(cacheFotos[id]); return; }
+      return llamar('foto', { token: S.token, foto_id: id }).then(function (r) {
+        var bin = atob(r.b64), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        var b = new Blob([arr], { type: 'image/jpeg' }); cacheFotos[id] = b; out.push(b);
+      });
+    });
+  });
+  return cadena.then(function () { return out; });
+}
+function abrirWhatsApp(texto) {
+  // wa.me abre directo la app de WhatsApp en el celular (o WhatsApp Web en la compu); el guardia elige el grupo
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+}
+function compartirImagen() {
+  var u = S.ultimo; if (!u) return;
+  compartirEvidencia(u.it, u.it.fecha || (S.estado && S.estado.hoy), u.r.texto_grupo);
+}
+function puedeCompartirImagen() {
+  try { var f = new File([new Blob(['x'])], 'x.jpg', { type: 'image/jpeg' }); return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [f] })); } catch (e) { return false; }
+}
+function marcarCompartido(id) {
+  llamar('compartido', { token: S.token, evidencia_id: id }).then(function () { document.getElementById('l-compartido').textContent = '✔ Registrado como enviada al grupo'; }).catch(function () {});
+}
+
+// ---------- admin ----------
+function irAdmin() { document.getElementById('nip').value = ''; err('err-nip', ''); ir('p-nip'); setTimeout(function () { document.getElementById('nip').focus(); }, 100); }
+function volverDeAdmin() { if (S.token) { ir('p-inicio'); cargarEstado(); } else ir('p-clave'); }
+function entrarAdmin() {
+  cargando(true, 'Entrando…');
+  llamar('entrar_admin', { nip: document.getElementById('nip').value }).then(function (r) { S.adminToken = r.token; return cargarAdmin(); })
+    .then(function () { ir('p-admin'); tab('cump'); cargarReporte(); })
+    .catch(function (e) { err('err-nip', e.message); }).finally(function () { cargando(false); });
+}
+function cargarAdmin() {
+  return llamar('admin_datos', { token: S.adminToken }).then(function (r) {
+    S.admin = r;
+    ['r-caseta', 'b-caseta', 'c-caseta', 'g-caseta'].forEach(function (id) {
+      var s = document.getElementById(id); s.innerHTML = id === 'r-caseta' || id === 'b-caseta' ? '<option value="">Todas</option>' : '';
+      r.casetas.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.nombre; s.appendChild(o); });
+    });
+    document.getElementById('j-wa').value = r.config.admin_whatsapp || '';
+    document.getElementById('j-key').value = r.config.admin_callmebot_key || '';
+    document.getElementById('j-grupo').value = r.config.nombre_grupo || '';
+    document.getElementById('j-hora').value = r.config.hora_reporte || 7;
+    document.getElementById('j-nip').value = r.config.nip_admin || '';
+    document.getElementById('j-url').textContent = r.url || URL_APP;
+    pintarConsignas(); pintarEquipo();
+    var hoy = new Date(), d7 = new Date(); d7.setDate(hoy.getDate() - 6);
+    if (!document.getElementById('r-desde').value) { document.getElementById('r-desde').value = fechaISO(d7); document.getElementById('r-hasta').value = fechaISO(hoy); }
+    if (!document.getElementById('b-desde').value) { document.getElementById('b-desde').value = fechaISO(d7); document.getElementById('b-hasta').value = fechaISO(hoy); }
+  });
+}
+function fechaISO(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function tab(n) {
+  document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('sel', t.dataset.t === n); });
+  document.querySelectorAll('.vista').forEach(function (v) { v.classList.toggle('sel', v.id === 'v-' + n); });
+  if (n === 'bit' && !document.getElementById('b-notas').innerHTML) cargarBitacora();
+}
+
+// Bitácora (admin)
+function cargarBitacora() {
+  var desde = document.getElementById('b-desde').value, hasta = document.getElementById('b-hasta').value;
+  if (!desde || !hasta) return;
+  cargando(true, 'Cargando…'); err('err-bit', '');
+  llamar('admin_bitacora', { token: S.adminToken, desde: desde, hasta: hasta, caseta_id: document.getElementById('b-caseta').value }).then(function (r) {
+    var notas = r.filas.filter(function (b) { return b.tipo === 'nota'; }).reverse(), alb = r.filas.filter(function (b) { return b.tipo === 'alberca'; }).reverse();
+    document.getElementById('b-notas').innerHTML = '<h2>📝 Notas de la jornada (' + notas.length + ')</h2>' + (notas.length ? notas.map(function (b) {
+      return '<div class="card' + (b.importante ? ' tarde' : '') + '"><div class="mini">' + esc(b.fecha) + ' ' + esc(b.hora) + ' · ' + esc(nombreCaseta(b.caseta_id)) + ' · ' + esc(b.guardia) + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE</b>' : '') + '</div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
+        ((b.fotos || []).length ? '<div class="minis">' + b.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '') + '</div>';
+    }).join('') : '<div class="card mini">Sin notas en este periodo.</div>');
+    document.getElementById('b-alberca').innerHTML = '<h2>🏊 Registro de alberca (' + alb.length + ')</h2>' + (alb.length ? '<div style="overflow-x:auto"><table><tr><th>Fecha</th><th>Hora</th><th>Casa</th><th>Personas</th><th>Observación</th><th>Guardia</th></tr>' + alb.map(function (b) {
+      return '<tr><td>' + esc(b.fecha.slice(5)) + '</td><td>' + esc(b.hora) + '</td><td><b>' + esc(b.casa) + '</b></td><td>' + esc(b.personas) + '</td><td>' + esc(b.texto) + '</td><td>' + esc(b.guardia) + '</td></tr>';
+    }).join('') + '</table></div>' : '<div class="card mini">Sin registros de alberca en este periodo.</div>');
+  }).catch(function (e) { err('err-bit', e.message); }).finally(function () { cargando(false); });
+}
+function nombreCaseta(id) { var c = (S.admin.casetas || []).filter(function (x) { return String(x.id) === String(id); })[0]; return c ? c.nombre : id; }
+
+// Consignas
+function pintarConsignas() {
+  var el = document.getElementById('lista-cons'); el.innerHTML = '';
+  var cs = S.admin.consignas.slice().sort(function (a, b) { return String(a.hora) < String(b.hora) ? -1 : 1; });
+  if (!cs.length) el.innerHTML = '<div class="lista-item mini">Sin consignas. Agrega la primera.</div>';
+  cs.forEach(function (k) {
+    var d = document.createElement('div'); d.className = 'lista-item';
+    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
+    d.onclick = function () { editarConsigna(k); }; el.appendChild(d);
+  });
+}
+function diasLegibles(s) { s = String(s || ''); if (s.length === 7) return 'todos los días'; return DIAS.map(function (l, i) { return s.indexOf(l) >= 0 ? DIAS_N[i] : null; }).filter(Boolean).join(' '); }
+var consignaEd = null;
+function editarConsigna(k) {
+  consignaEd = k; err('err-cons', '');
+  document.getElementById('fc-titulo').textContent = k ? 'Editar consigna' : 'Nueva consigna';
+  document.getElementById('c-caseta').value = k ? k.caseta_id : (S.admin.casetas[0] || {}).id;
+  document.getElementById('c-titulo').value = k ? k.titulo : '';
+  document.getElementById('c-inst').value = k ? k.instruccion : '';
+  document.getElementById('c-tipo').value = k && String(k.tipo) === 'texto' ? 'texto' : 'foto';
+  document.getElementById('c-hora').value = k ? String(k.hora) : '';
+  document.getElementById('c-tol').value = k ? k.tolerancia_min : 30;
+  document.getElementById('c-lim').value = k ? k.limite_min : 120;
+  document.getElementById('c-cada').value = k ? k.recordar_cada_min : 8;
+  document.getElementById('c-max').value = k ? k.max_avisos : 3;
+  document.getElementById('c-ant').value = k ? k.anticipacion_min : 60;
+  document.getElementById('c-grupo').checked = k ? String(k.compartir_grupo) === 'si' : false;
+  document.getElementById('c-activa').checked = k ? String(k.activa) === 'si' : true;
+  var dias = k ? String(k.dias) : 'LMXJVSD', dd = document.getElementById('c-dias'); dd.innerHTML = '';
+  DIAS.forEach(function (l, i) { var b = document.createElement('div'); b.className = 'dia' + (dias.indexOf(l) >= 0 ? ' sel' : ''); b.textContent = DIAS_N[i]; b.dataset.l = l; b.onclick = function () { b.classList.toggle('sel'); }; dd.appendChild(b); });
+  document.getElementById('btn-borrar-cons').style.display = k ? 'block' : 'none';
+  var f = document.getElementById('form-cons'); f.style.display = 'block'; f.scrollIntoView({ behavior: 'smooth' });
+}
+function guardarConsigna() {
+  var dias = Array.prototype.map.call(document.querySelectorAll('#c-dias .dia.sel'), function (b) { return b.dataset.l; }).join('');
+  var k = { id: consignaEd ? consignaEd.id : null, caseta_id: document.getElementById('c-caseta').value, titulo: document.getElementById('c-titulo').value.trim(), instruccion: document.getElementById('c-inst').value.trim(),
+    hora: document.getElementById('c-hora').value, dias: dias, tolerancia_min: +document.getElementById('c-tol').value, limite_min: +document.getElementById('c-lim').value, recordar_cada_min: +document.getElementById('c-cada').value,
+    max_avisos: +document.getElementById('c-max').value, anticipacion_min: +document.getElementById('c-ant').value, compartir_grupo: document.getElementById('c-grupo').checked, activa: document.getElementById('c-activa').checked, tipo: document.getElementById('c-tipo').value };
+  if (!k.titulo || !k.hora) return err('err-cons', 'Falta el título o la hora.');
+  if (!dias) return err('err-cons', 'Elige al menos un día.');
+  if (k.limite_min < k.tolerancia_min) return err('err-cons', 'El límite debe ser mayor que los minutos para cumplir.');
+  cargando(true, 'Guardando…');
+  llamar('admin_consigna', { token: S.adminToken, consigna: k }).then(cargarAdmin).then(function () { document.getElementById('form-cons').style.display = 'none'; })
+    .catch(function (e) { err('err-cons', e.message); }).finally(function () { cargando(false); });
+}
+function borrarConsigna() {
+  if (!consignaEd || !confirm('¿Borrar la consigna "' + consignaEd.titulo + '"? El historial de evidencias se conserva.')) return;
+  cargando(true, 'Borrando…');
+  llamar('admin_borrar_consigna', { token: S.adminToken, id: consignaEd.id }).then(cargarAdmin).then(function () { document.getElementById('form-cons').style.display = 'none'; })
+    .catch(function (e) { err('err-cons', e.message); }).finally(function () { cargando(false); });
+}
+
+// Equipo
+function pintarEquipo() {
+  var el = document.getElementById('lista-guardias'); el.innerHTML = '';
+  S.admin.guardias.forEach(function (g) {
+    var d = document.createElement('div'); d.className = 'lista-item';
+    d.innerHTML = '<div><b>' + esc(g.nombre) + '</b><div class="mini">' + esc(nombreCaseta(g.caseta_id)) + (String(g.activo) !== 'si' ? ' · <span style="color:var(--rojo)">inactivo</span>' : '') + '</div></div><button class="chip">' + (String(g.activo) === 'si' ? 'Dar de baja' : 'Reactivar') + '</button>';
+    d.querySelector('button').onclick = function () {
+      cargando(true, 'Guardando…');
+      llamar('admin_guardia', { token: S.adminToken, guardia: { id: g.id, nombre: g.nombre, caseta_id: g.caseta_id, activo: String(g.activo) !== 'si' } }).then(cargarAdmin).catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
+    };
+    el.appendChild(d);
+  });
+  var lc = document.getElementById('lista-casetas'); lc.innerHTML = '';
+  S.admin.casetas.forEach(function (c) {
+    var d = document.createElement('div'); d.className = 'card';
+    d.innerHTML = '<div class="titulo">' + esc(c.nombre) + '</div>' +
+      '<label>Clave de caseta (la que se escribe en el celular)</label><input data-k="clave" value="' + esc(c.clave) + '">' +
+      '<label>WhatsApp del celular de caseta (con +52)</label><input data-k="whatsapp" value="' + esc(c.whatsapp) + '">' +
+      '<label>Apikey de CallMeBot de ese celular</label><input data-k="callmebot_key" value="' + esc(c.callmebot_key) + '">' +
+      '<div class="mini">Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
+      '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button>';
+    var bs = d.querySelectorAll('button');
+    bs[0].onclick = function () {
+      var o = { id: c.id, nombre: c.nombre, activa: true }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.value.trim(); });
+      cargando(true, 'Guardando…');
+      llamar('admin_caseta', { token: S.adminToken, caseta: o }).then(cargarAdmin).catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
+    };
+    bs[1].onclick = function () { probarWA(c.id); };
+    lc.appendChild(d);
+  });
+}
+function guardarGuardia() {
+  var n = document.getElementById('g-nombre').value.trim(); if (!n) return err('err-equipo', 'Escribe el nombre.');
+  cargando(true, 'Guardando…');
+  llamar('admin_guardia', { token: S.adminToken, guardia: { nombre: n, caseta_id: document.getElementById('g-caseta').value } }).then(function () { document.getElementById('g-nombre').value = ''; return cargarAdmin(); })
+    .catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
+}
+function probarWA(destino) {
+  cargando(true, 'Enviando prueba…');
+  llamar('admin_probar_wa', { token: S.adminToken, destino: destino === 'admin' ? 'admin' : 'caseta', caseta_id: destino }).then(function (r) { alert(r.enviado ? 'Enviado. Revisa el WhatsApp.' : 'No se pudo enviar: revisa número y apikey (o mira LogApp en la hoja).'); })
+    .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
+}
+function guardarAjustes() {
+  var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, nip_admin: document.getElementById('j-nip').value.trim() };
+  if (!cfg.nip_admin) return err('err-aj', 'El NIP no puede quedar vacío.');
+  cargando(true, 'Guardando…');
+  llamar('admin_config', { token: S.adminToken, config: cfg }).then(cargarAdmin).then(function () { err('err-aj', ''); alert('Guardado.'); }).catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
+}
+
+// Cumplimiento
+var reporteActual = null;
+function cargarReporte() {
+  var desde = document.getElementById('r-desde').value, hasta = document.getElementById('r-hasta').value, cas = document.getElementById('r-caseta').value;
+  if (!desde || !hasta) return;
+  cargando(true, 'Cargando…'); err('err-rep', '');
+  llamar('admin_reporte', { token: S.adminToken, desde: desde, hasta: hasta, caseta_id: cas }).then(function (r) { reporteActual = r.filas; pintarReporte(r.filas, desde, hasta); })
+    .catch(function (e) { err('err-rep', e.message); }).finally(function () { cargando(false); });
+}
+function pintarReporte(filas, desde, hasta) {
+  var t = { cumplida: 0, tarde: 0, falla: 0 };
+  filas.forEach(function (e) { if (e.estado === 'cumplida') t.cumplida++; else if (e.estado === 'tarde') t.tarde++; else t.falla++; });
+  document.getElementById('r-kpis').innerHTML = '<div class="kpi" style="color:var(--verde)"><b>' + t.cumplida + '</b><span>Cumplidas</span></div><div class="kpi" style="color:var(--ambar)"><b>' + t.tarde + '</b><span>Tarde</span></div><div class="kpi" style="color:var(--rojo)"><b>' + t.falla + '</b><span>No cumplidas</span></div>';
+  document.getElementById('btn-pdf').style.display = 'block';
+  // matriz fecha x consigna
+  var cons = {}, fechas = {};
+  filas.forEach(function (e) { cons[e.consigna_id] = e.titulo + ' ' + String(e.programada).slice(11); fechas[e.fecha] = 1; });
+  var ck = Object.keys(cons).sort(function (a, b) { return cons[a].slice(-5) < cons[b].slice(-5) ? -1 : 1; }), fk = Object.keys(fechas).sort().reverse();
+  var h = '<table><tr><th>Fecha</th>' + ck.map(function (k) { return '<th>' + esc(cons[k]) + '</th>'; }).join('') + '</tr>';
+  fk.forEach(function (f) {
+    h += '<tr><td><b>' + f.slice(5) + '</b></td>';
+    ck.forEach(function (k) {
+      var e = filas.filter(function (x) { return x.fecha === f && x.consigna_id === k; })[0];
+      if (!e) { h += '<td><span class="cel na">—</span></td>'; return; }
+      var lbl = { cumplida: '✔', tarde: '⚠ ' + (e.minutos > 0 ? '+' + e.minutos : ''), fallida: '✖', pendiente: '…' }[e.estado] || e.estado;
+      h += '<td><span class="cel ' + e.estado + '" title="' + esc(e.guardia) + '">' + lbl + '</span><div class="mini" style="text-align:center">' + esc((e.guardia || '').split(' ')[0]) + (e.foto_ver ? ' <a href="' + esc(e.foto_ver) + '" target="_blank">📷</a>' : '') + '</div></td>';
+    });
+    h += '</tr>';
+  });
+  h += '</table>';
+  document.getElementById('r-tabla').innerHTML = filas.length ? h : '<div class="card mini">Sin registros en este periodo.</div>';
+  var pg = {};
+  filas.forEach(function (e) { var g = e.guardia || '(sin guardia)'; pg[g] = pg[g] || { c: 0, t: 0, f: 0 }; if (e.estado === 'cumplida') pg[g].c++; else if (e.estado === 'tarde') pg[g].t++; else pg[g].f++; });
+  var gk = Object.keys(pg);
+  document.getElementById('r-guardias').innerHTML = gk.length ? '<h2>Por guardia</h2><table><tr><th>Guardia</th><th>Cumplidas</th><th>Tarde</th><th>No cumplidas</th></tr>' + gk.map(function (g) { return '<tr><td>' + esc(g) + '</td><td>' + pg[g].c + '</td><td>' + pg[g].t + '</td><td>' + pg[g].f + '</td></tr>'; }).join('') + '</table><div class="mini" style="margin-top:6px">Las "no cumplidas" sin guardia son las que nadie subió: se cargan al turno de ese día.</div>' : '';
+}
+function descargarPDF() {
+  cargando(true, 'Armando PDF…');
+  llamar('admin_pdf', { token: S.adminToken, desde: document.getElementById('r-desde').value, hasta: document.getElementById('r-hasta').value, caseta_id: document.getElementById('r-caseta').value })
+    .then(function (r) { window.open(r.url, '_blank'); }).catch(function (e) { err('err-rep', e.message); }).finally(function () { cargando(false); });
+}
+
+document.getElementById('clave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+document.getElementById('nip').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrarAdmin(); });
+arrancar();
+</script>
+<script>
+if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function (e) { console.warn('sw', e); }); }); }
+</script>
+</body>
+</html>
