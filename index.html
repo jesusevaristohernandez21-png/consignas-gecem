@@ -133,7 +133,7 @@
     <div id="lista-alberca"></div>
 
     <div id="sec-recientes"><h2>Días anteriores</h2><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.0 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.1 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
   </main>
 </div>
 
@@ -340,9 +340,12 @@ function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); i
 function arrancar() {
   S.token = ls('cg_token'); S.guardia = ls('cg_guardia');
   if (!S.token) { ir('p-clave'); return; }
+  // Pinta al instante lo último que se vio (guardado en el celular) y actualiza en segundo plano
+  var guardado = null; try { guardado = JSON.parse(ls('cg_estado') || 'null'); } catch (e) {}
+  if (guardado && guardado.caseta) { S.estado = guardado; S.caseta = guardado.caseta; pintarInicio(); ir('p-inicio'); cargarEstado(); return; }
   cargando(true, 'Cargando…');
-  llamar('sesion', { token: S.token }).then(function (r) { S.caseta = r.caseta; ir('p-inicio'); return cargarEstado(); })
-    .catch(function () { ls('cg_token', null); ir('p-clave'); }).finally(function () { cargando(false); });
+  ir('p-inicio');
+  cargarEstado(true, true);
 }
 function entrar() {
   err('err-clave', '');
@@ -354,15 +357,19 @@ function entrar() {
     ir('p-inicio'); return cargarEstado();
   }).catch(function (e) { err('err-clave', e.message); }).finally(function () { cargando(false); });
 }
-function salir() { if (!confirm('¿Quitar esta caseta del celular?')) return; ls('cg_token', null); ls('cg_guardia', null); S.token = null; ir('p-clave'); }
+function salir() { if (!confirm('¿Quitar esta caseta del celular?')) return; ls('cg_token', null); ls('cg_guardia', null); ls('cg_estado', null); S.token = null; ir('p-clave'); }
 
 // ---------- estado del día ----------
 var timerEstado = null;
-function cargarEstado(manual) {
-  if (manual) cargando(true, 'Actualizando…');
+function cargarEstado(manual, arranque) {
+  if (manual) cargando(true, arranque ? 'Cargando…' : 'Actualizando…');
   return llamar('estado', { token: S.token }).then(function (r) {
     S.estado = r; S.caseta = r.caseta; pintarInicio();
-  }).catch(function (e) { alert(e.message); }).finally(function () {
+    ls('cg_estado', JSON.stringify(r));
+  }).catch(function (e) {
+    if (/Sesión inválida|Caseta no encontrada/.test(e.message)) { ls('cg_token', null); ls('cg_estado', null); S.token = null; ir('p-clave'); return; }
+    if (manual) alert(e.message);
+  }).finally(function () {
     cargando(false);
     clearTimeout(timerEstado); timerEstado = setTimeout(function () { if (document.getElementById('p-inicio').classList.contains('activa')) cargarEstado(); }, 60000);
   });
@@ -400,14 +407,22 @@ function pintarBitacora(lista) {
   lista.forEach(function (b) {
     var d = document.createElement('div'); d.className = 'card' + (b.importante ? ' tarde' : '');
     if (b.tipo === 'alberca') {
-      d.innerHTML = '<div class="fila"><div><div class="titulo">Casa ' + esc(b.casa) + ' · ' + esc(b.personas || '?') + ' persona' + (String(b.personas) === '1' ? '' : 's') + '</div><div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.texto ? ' · ' + esc(b.texto) : '') + '</div></div></div>';
+      d.innerHTML = '<div class="fila"><div><div class="titulo">Casa ' + esc(b.casa) + ' · ' + esc(b.personas || '?') + ' persona' + (String(b.personas) === '1' ? '' : 's') + '</div><div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.texto ? ' · ' + esc(b.texto) : '') + '</div></div><button class="btn wa chico" style="width:auto;margin:0;padding:8px 12px">📲</button></div>';
+      d.querySelector('button').onclick = function () { abrirWhatsApp(textoBitacora(b)); };
       la.appendChild(d);
     } else {
-      d.innerHTML = '<div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE, avisado</b>' : '') + '</div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
+      d.innerHTML = '<div class="fila"><div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE, avisado</b>' : '') + '</div><button class="btn wa chico" style="width:auto;margin:0;padding:8px 12px">📲</button></div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
         ((b.fotos || []).length ? '<div class="minis">' + b.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '');
+      d.querySelector('button').onclick = function () { abrirWhatsApp(textoBitacora(b)); };
       ln.appendChild(d);
     }
   });
+}
+// Texto para WhatsApp de una nota o un registro de alberca
+function textoBitacora(b) {
+  var f = String(b.fecha || (S.estado && S.estado.hoy) || '').split('-').reverse().join('/');
+  if (b.tipo === 'alberca') return '🏊 *Alberca — Casa ' + b.casa + '* — ' + S.caseta.nombre + '\n' + f + ' ' + b.hora + ' · ' + (b.personas || '?') + ' persona' + (String(b.personas) === '1' ? '' : 's') + (b.texto ? ' · ' + b.texto : '') + '\nGuardia: ' + b.guardia;
+  return '📝 *Nota de caseta* — ' + S.caseta.nombre + '\n' + f + ' ' + b.hora + ' · Guardia: ' + b.guardia + '\n' + b.texto + ((b.fotos || []).length ? '\n📷 ' + b.fotos.map(function (x) { return x.ver; }).join('\n') : '');
 }
 function notaFotoElegida(inp) {
   var files = Array.prototype.slice.call(inp.files || []).slice(0, 4 - S.notaBlobs.length); if (!files.length) return;
@@ -433,8 +448,9 @@ function guardarNota() {
   cargando(true, 'Guardando nota…');
   Promise.all(S.notaBlobs.map(blobADataURL)).then(function (datas) {
     return llamar('bitacora', { token: S.token, tipo: 'nota', guardia: S.guardia, texto: texto, importante: imp, fotos: datas });
-  }).then(function () {
+  }).then(function (r) {
     document.getElementById('n-texto').value = ''; document.getElementById('n-importante').checked = false; S.notaBlobs = []; pintarMinisNota();
+    if (S.estado) { S.estado.bitacora = [r.item].concat(S.estado.bitacora || []); pintarBitacora(S.estado.bitacora); }
     return cargarEstado();
   }).catch(function (e) { err('err-nota', e.message); }).finally(function () { cargando(false); });
 }
@@ -445,8 +461,11 @@ function guardarAlberca() {
   if (!casa) return err('err-alberca', 'Escribe de qué casa son.');
   if (!personas) return err('err-alberca', 'Escribe cuántas personas hay.');
   cargando(true, 'Registrando…');
-  llamar('bitacora', { token: S.token, tipo: 'alberca', guardia: S.guardia, casa: casa, personas: personas, texto: document.getElementById('al-texto').value.trim() }).then(function () {
+  llamar('bitacora', { token: S.token, tipo: 'alberca', guardia: S.guardia, casa: casa, personas: personas, texto: document.getElementById('al-texto').value.trim() }).then(function (r) {
     document.getElementById('al-casa').value = ''; document.getElementById('al-personas').value = ''; document.getElementById('al-texto').value = '';
+    if (S.estado) { S.estado.bitacora = [r.item].concat(S.estado.bitacora || []); pintarBitacora(S.estado.bitacora); }
+    cargando(false);
+    if (confirm('Registrado. ¿Mandarlo al grupo de WhatsApp ' + (S.caseta.grupo || 'Mesa Directiva') + '?')) abrirWhatsApp(textoBitacora(r.item));
     return cargarEstado();
   }).catch(function (e) { err('err-alberca', e.message); }).finally(function () { cargando(false); });
 }
