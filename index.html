@@ -62,6 +62,9 @@
   .kpi{background:#fff;border:1px solid var(--borde);border-radius:12px;padding:10px;text-align:center}.kpi b{display:block;font-size:26px}.kpi span{font-size:12px;color:var(--gris)}
   .dias{display:flex;gap:6px}.dia{flex:1;text-align:center;padding:10px 0;border:2px solid var(--borde);border-radius:10px;font-weight:800;background:#fff}.dia.sel{background:var(--azul2);border-color:var(--azul2);color:#fff}
   .dos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .fija{display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer}
+  .fija input{width:24px;height:24px;flex:0 0 auto;margin-top:2px}
+  .fija.ok{border-color:var(--verde);background:#f2fbf5}
   .lista-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--borde);background:#fff}
   .lista-item:first-child{border-radius:12px 12px 0 0}.lista-item:last-child{border-radius:0 0 12px 12px;border-bottom:0}
   .lista{border:1px solid var(--borde);border-radius:12px;margin-bottom:10px}
@@ -133,7 +136,7 @@
     <div id="lista-alberca"></div>
 
     <div id="sec-recientes"><h2>Días anteriores</h2><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.2 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.3 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
   </main>
 </div>
 
@@ -142,9 +145,10 @@
   <header><div><h1 id="f-titulo">Consigna</h1><small id="f-sub"></small></div><button class="icono" onclick="ir('p-inicio')">✕</button></header>
   <main>
     <div class="card"><div class="inst" id="f-inst"></div><div class="mini" style="margin-top:8px">Sube la evidencia como: <b id="f-guardia"></b></div></div>
+    <div id="f-fijas" style="display:none"></div>
     <input type="file" id="archivo" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this)">
     <input type="file" id="galeria" accept="image/*" multiple style="display:none" onchange="fotoElegida(this)">
-    <div class="dos">
+    <div class="dos" id="f-fotos">
       <button class="btn rojo" id="btn-tomar" onclick="document.getElementById('archivo').click()">📷 Tomar foto</button>
       <button class="btn sec" onclick="document.getElementById('galeria').click()">🖼 De la galería</button>
     </div>
@@ -214,13 +218,22 @@
     <div class="vista" id="v-cons">
       <button class="btn chico" onclick="editarConsigna(null)">＋ Nueva consigna</button>
       <div class="lista" id="lista-cons"></div>
+      <div class="card" style="margin-top:14px">
+        <div class="titulo">📋 Consignas fijas</div>
+        <div class="mini">Instrucciones permanentes del fraccionamiento. El guardia las lee y las palomea en la consigna de tipo "Palomear consignas fijas".</div>
+        <div class="lista" id="lista-fijas"></div>
+        <label>Agregar consigna fija</label>
+        <textarea id="fj-texto" rows="2" placeholder="Ej. Casa 65: recibir siempre la paquetería en caseta"></textarea>
+        <button class="btn verde chico" onclick="guardarFija()">＋ Agregar</button>
+        <div class="error" id="err-fijas"></div>
+      </div>
       <div id="form-cons" class="card" style="display:none">
         <div class="titulo" id="fc-titulo">Nueva consigna</div>
         <label>Caseta</label><select id="c-caseta"></select>
         <label>Título</label><input id="c-titulo" placeholder="Ej. Autos en estacionamiento">
         <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3" placeholder="Ej. Foto general del estacionamiento de visitas mostrando los autos"></textarea>
         <label>Tipo de evidencia</label>
-        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option></select>
+        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option></select>
         <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
         <label>Hora del aviso (24 h)</label><input id="c-hora" type="time">
         <label>Días</label>
@@ -487,22 +500,28 @@ function tarjetaPend(it) {
   else txt = 'Ya va tarde (' + it.minutos + ' min). Súbela ahora.';
   d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
     '<div class="contador" style="margin-top:8px">⏰ ' + txt + '</div>' +
-    '<button class="btn rojo">' + (esTexto(it) ? '📝 Enviar reporte ahora' : '📷 Subir foto ahora') + '</button>';
+    '<button class="btn rojo">' + accion(it, true) + '</button>';
   d.querySelector('button').onclick = function () { abrirFoto(it); };
   return d;
 }
-function esTexto(it) { return it && it.tipo === 'texto'; }
+function esTexto(it) { return it && (it.tipo === 'texto' || it.tipo === 'fijas'); }
+function esFijas(it) { return it && it.tipo === 'fijas'; }
+// Texto del botón según el tipo de consigna
+function accion(it, ahora) {
+  if (esFijas(it)) return '✅ Palomear consignas fijas';
+  return (esTexto(it) ? '📝 Enviar reporte' : '📷 Subir foto') + (ahora ? ' ahora' : '');
+}
 function tarjetaAbierta(it) {
   var d = document.createElement('div'); d.className = 'card abierta';
   d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
-    '<div class="mini" style="margin-top:6px">Falta ' + (-it.minutos) + ' min para la hora, pero ya puedes ' + (esTexto(it) ? 'enviarlo' : 'subirla') + '.</div><button class="btn">' + (esTexto(it) ? '📝 Enviar reporte' : '📷 Subir foto') + '</button>';
+    '<div class="mini" style="margin-top:6px">Falta ' + (-it.minutos) + ' min para la hora, pero ya puedes ' + (esFijas(it) ? 'palomearlas' : esTexto(it) ? 'enviarlo' : 'subirla') + '.</div><button class="btn">' + accion(it) + '</button>';
   d.querySelector('button').onclick = function () { abrirFoto(it); };
   return d;
 }
 function tarjetaProx(it) {
   var d = document.createElement('div'); d.className = 'card prox';
   d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="mini">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
-    '<div class="mini" style="margin-top:6px">El aviso llega a las ' + esc(it.hora) + ', pero puedes hacerla desde ahora.</div><button class="btn sec chico">' + (esTexto(it) ? '📝 Enviar reporte ahora' : '📷 Subir foto ahora') + '</button>';
+    '<div class="mini" style="margin-top:6px">El aviso llega a las ' + esc(it.hora) + ', pero puedes hacerla desde ahora.</div><button class="btn sec chico">' + accion(it, true) + '</button>';
   d.querySelector('button').onclick = function () { abrirFoto(it); };
   return d;
 }
@@ -524,7 +543,7 @@ function tarjetaHecha(it, fecha) {
 function textoDe(it, fecha) {
   var f = String(fecha || '').split('-').reverse().join('/');
   var n = (it.fotos || []).length;
-  return '✅ *' + it.titulo + '* — ' + S.caseta.nombre + '\n' + f + ' ' + String(it.subida || '').slice(11) + ' · Guardia: ' + (it.guardia || '') + (it.nota ? '\n' + (esTexto(it) ? 'Reporte: ' : 'Nota: ') + it.nota : '') + (n ? '\n📷 ' + (n > 1 ? n + ' fotos: ' : 'Foto: ') + (it.foto_corta || it.foto_ver) : '');
+  return '✅ *' + it.titulo + '* — ' + S.caseta.nombre + '\n' + f + ' ' + String(it.subida || '').slice(11) + ' · Guardia: ' + (it.guardia || '') + (it.nota ? '\n' + (esFijas(it) ? 'Confirmado: ' : esTexto(it) ? 'Reporte: ' : 'Nota: ') + it.nota : '') + (n ? '\n📷 ' + (n > 1 ? n + ' fotos: ' : 'Foto: ') + (it.foto_corta || it.foto_ver) : '');
 }
 // Compartir una evidencia ya guardada: como imagen si el celular lo permite, si no como texto+link
 var cacheFotos = {};
@@ -556,15 +575,19 @@ function abrirFoto(it, agregar) {
   document.getElementById('f-sub').textContent = 'Hora: ' + it.hora + ' · ' + S.caseta.nombre;
   document.getElementById('f-inst').textContent = it.instruccion || '';
   document.getElementById('f-guardia').textContent = S.guardia;
-  var texto = esTexto(it) && !agregar;
+  var texto = esTexto(it) && !agregar, fij = esFijas(it) && !agregar;
   document.getElementById('f-detalle').style.display = texto ? 'block' : 'none';
-  document.getElementById('f-nota-label').textContent = texto ? 'Escribe el reporte' : 'Nota (opcional)';
-  document.getElementById('nota').placeholder = texto ? 'Ej. Faltan 2 garrafones, papel de baño y pilas para la lámpara' : 'Ej. 3 autos, uno sin placas';
+  document.getElementById('f-nota-label').textContent = fij ? 'Observación (opcional)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
+  document.getElementById('nota').placeholder = fij ? 'Ej. La casa 40 no contestó el WhatsApp' : texto ? 'Ej. Faltan 2 garrafones, papel de baño y pilas para la lámpara' : 'Ej. 3 autos, uno sin placas';
   document.getElementById('f-ayuda').textContent = texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
+  document.getElementById('f-ayuda').style.display = fij ? 'none' : 'block';
+  document.getElementById('f-fotos').style.display = fij ? 'none' : '';
+  document.getElementById('btn-enviar').disabled = false;
   document.getElementById('btn-enviar').textContent = texto ? '✔ Enviar reporte' : '✔ Enviar evidencia';
   document.getElementById('nota').value = '';
   document.getElementById('archivo').value = ''; document.getElementById('galeria').value = '';
   pintarMiniaturas();
+  pintarFijas(fij);
   err('err-foto', '');
   ir('p-foto');
 }
@@ -586,8 +609,32 @@ function pintarMiniaturas() {
   });
   var texto = esTexto(S.actual) && !S.modoAgregar;
   document.getElementById('f-detalle').style.display = S.blobs.length || texto ? 'block' : 'none';
+  if (esFijas(S.actual) && !S.modoAgregar) { contarFijas(); return; }
   document.getElementById('btn-enviar').textContent = (texto ? '✔ Enviar reporte' : '✔ Enviar evidencia') + (S.blobs.length > 1 ? ' (' + S.blobs.length + ' fotos)' : '');
   document.getElementById('btn-tomar').textContent = S.blobs.length ? '📷 Otra foto' : '📷 Tomar foto';
+}
+// Lista de consignas fijas para palomear
+function pintarFijas(mostrar) {
+  var c = document.getElementById('f-fijas');
+  c.style.display = mostrar ? 'block' : 'none';
+  if (!mostrar) return;
+  var lista = (S.estado && S.estado.fijas) || [];
+  if (!lista.length) { c.innerHTML = '<div class="card mini">Todavía no hay consignas fijas cargadas. Avisa a supervisión.</div>'; return; }
+  c.innerHTML = '<div class="mini" style="margin:6px 0">Palomea cada una conforme la vayas leyendo. Son ' + lista.length + '.</div>' +
+    lista.map(function (f, i) { return '<label class="card fija"><input type="checkbox" data-i="' + i + '"><span>' + esc(f.texto) + '</span></label>'; }).join('') +
+    '<div class="mini" id="f-fijas-cuenta" style="margin-bottom:8px"></div>';
+  Array.prototype.forEach.call(c.querySelectorAll('input'), function (x) {
+    x.onchange = function () { x.closest('.fija').classList.toggle('ok', x.checked); contarFijas(); };
+  });
+  contarFijas();
+}
+function contarFijas() {
+  var c = document.getElementById('f-fijas');
+  var t = c.querySelectorAll('input').length, n = c.querySelectorAll('input:checked').length;
+  var e = document.getElementById('f-fijas-cuenta'); if (e) e.textContent = n + ' de ' + t + ' palomeadas';
+  var b = document.getElementById('btn-enviar');
+  b.disabled = n < t;
+  b.textContent = n < t ? '✔ Palomea todas (' + n + '/' + t + ')' : '✔ Confirmar las ' + t + ' consignas fijas';
 }
 function blobADataURL(b) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(rd.result); }; rd.onerror = rej; rd.readAsDataURL(b); }); }
 function comprimir(file, max, calidad) {
@@ -604,18 +651,24 @@ function comprimir(file, max, calidad) {
   });
 }
 function enviar() {
-  var texto = esTexto(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
+  var texto = esTexto(S.actual) && !S.modoAgregar, fij = esFijas(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
   if (!S.blobs.length && !texto) return err('err-foto', 'Primero toma la foto.');
+  if (fij) {
+    var lista = (S.estado && S.estado.fijas) || [];
+    var cajas = Array.prototype.slice.call(document.querySelectorAll('#f-fijas input'));
+    if (!cajas.length || cajas.some(function (x) { return !x.checked; })) return err('err-foto', 'Palomea todas las consignas fijas antes de confirmar.');
+    nota = 'Leídas y confirmadas ' + lista.length + ' consignas fijas:\n' + lista.map(function (f) { return '• ' + f.texto; }).join('\n') + (nota ? '\nObservación: ' + nota : '');
+  }
   if (texto && !nota) return err('err-foto', 'Escribe el reporte.');
   var btn = document.getElementById('btn-enviar'); btn.disabled = true;
-  cargando(true, 'Enviando ' + (S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
+  cargando(true, 'Enviando ' + (fij ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
     return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.modoAgregar ? S.actual.fecha : undefined, nota: nota })
       .then(function (r) {
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
         S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
-        document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
+        document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : fij ? 'Consignas fijas confirmadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
         document.getElementById('l-estado').innerHTML = r.estado === 'cumplida' ? '<span class="etiqueta verde">A TIEMPO</span>' : '<span class="etiqueta ambar">TARDE (' + r.minutos + ' min)</span>';
         document.getElementById('l-grupo').style.display = 'block';
         document.getElementById('l-aviso-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
@@ -688,7 +741,7 @@ function cargarAdmin() {
     document.getElementById('j-hora').value = r.config.hora_reporte || 7;
     document.getElementById('j-nip').value = r.config.nip_admin || '';
     document.getElementById('j-url').textContent = r.url || URL_APP;
-    pintarConsignas(); pintarEquipo();
+    pintarConsignas(); pintarFijasAdmin(); pintarEquipo();
     var hoy = new Date(), d7 = new Date(); d7.setDate(hoy.getDate() - 6);
     if (!document.getElementById('r-desde').value) { document.getElementById('r-desde').value = fechaISO(d7); document.getElementById('r-hasta').value = fechaISO(hoy); }
     if (!document.getElementById('b-desde').value) { document.getElementById('b-desde').value = fechaISO(d7); document.getElementById('b-hasta').value = fechaISO(hoy); }
@@ -726,7 +779,7 @@ function pintarConsignas() {
   if (!cs.length) el.innerHTML = '<div class="lista-item mini">Sin consignas. Agrega la primera.</div>';
   cs.forEach(function (k) {
     var d = document.createElement('div'); d.className = 'lista-item';
-    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
+    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
     d.onclick = function () { editarConsigna(k); }; el.appendChild(d);
   });
 }
@@ -738,7 +791,7 @@ function editarConsigna(k) {
   document.getElementById('c-caseta').value = k ? k.caseta_id : (S.admin.casetas[0] || {}).id;
   document.getElementById('c-titulo').value = k ? k.titulo : '';
   document.getElementById('c-inst').value = k ? k.instruccion : '';
-  document.getElementById('c-tipo').value = k && String(k.tipo) === 'texto' ? 'texto' : 'foto';
+  document.getElementById('c-tipo').value = k && (String(k.tipo) === 'texto' || String(k.tipo) === 'fijas') ? String(k.tipo) : 'foto';
   document.getElementById('c-hora').value = k ? String(k.hora) : '';
   document.getElementById('c-tol').value = k ? k.tolerancia_min : 30;
   document.getElementById('c-lim').value = k ? k.limite_min : 120;
@@ -769,6 +822,42 @@ function borrarConsigna() {
   cargando(true, 'Borrando…');
   llamar('admin_borrar_consigna', { token: S.adminToken, id: consignaEd.id }).then(cargarAdmin).then(function () { document.getElementById('form-cons').style.display = 'none'; })
     .catch(function (e) { err('err-cons', e.message); }).finally(function () { cargando(false); });
+}
+
+// Consignas fijas (admin)
+function pintarFijasAdmin() {
+  var el = document.getElementById('lista-fijas'); if (!el) return;
+  el.innerHTML = '';
+  var fs = (S.admin.fijas || []).slice().sort(function (a, b) { return (+a.orden || 99) - (+b.orden || 99); });
+  if (!fs.length) { el.innerHTML = '<div class="lista-item mini">Sin consignas fijas todavía.</div>'; return; }
+  fs.forEach(function (f) {
+    var d = document.createElement('div'); d.className = 'lista-item';
+    d.innerHTML = '<div style="flex:1"><b>' + esc(f.texto) + '</b><div class="mini">' + esc(nombreCaseta(f.caseta_id)) + (String(f.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div>' +
+      '<button class="chip" data-a="ed">Editar</button><button class="chip" data-a="del">✕</button>';
+    d.querySelector('[data-a="ed"]').onclick = function () {
+      var t = prompt('Consigna fija:', f.texto); if (t === null) return;
+      if (!t.trim()) return err('err-fijas', 'No puede quedar vacía.');
+      guardarFijaObj({ id: f.id, caseta_id: f.caseta_id, texto: t.trim(), orden: f.orden });
+    };
+    d.querySelector('[data-a="del"]').onclick = function () {
+      if (!confirm('¿Quitar esta consigna fija?\n\n' + f.texto)) return;
+      cargando(true, 'Borrando…');
+      llamar('admin_borrar_fija', { token: S.adminToken, id: f.id }).then(cargarAdmin).catch(function (e) { err('err-fijas', e.message); }).finally(function () { cargando(false); });
+    };
+    el.appendChild(d);
+  });
+}
+function guardarFija() {
+  var t = document.getElementById('fj-texto').value.trim();
+  if (!t) return err('err-fijas', 'Escribe la consigna fija.');
+  var caseta = document.getElementById('c-caseta').value || (S.admin.casetas[0] || {}).id;
+  var orden = ((S.admin.fijas || []).length + 1) * 10;
+  guardarFijaObj({ caseta_id: caseta, texto: t, orden: orden }, function () { document.getElementById('fj-texto').value = ''; });
+}
+function guardarFijaObj(fija, luego) {
+  err('err-fijas', ''); cargando(true, 'Guardando…');
+  llamar('admin_fija', { token: S.adminToken, fija: fija }).then(cargarAdmin).then(function () { if (luego) luego(); })
+    .catch(function (e) { err('err-fijas', e.message); }).finally(function () { cargando(false); });
 }
 
 // Equipo
