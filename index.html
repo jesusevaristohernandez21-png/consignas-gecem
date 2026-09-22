@@ -133,7 +133,7 @@
     <div id="lista-alberca"></div>
 
     <div id="sec-recientes"><h2>Días anteriores</h2><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.1 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.2 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
   </main>
 </div>
 
@@ -790,8 +790,10 @@ function pintarEquipo() {
       '<label>Clave de caseta (la que se escribe en el celular)</label><input data-k="clave" value="' + esc(c.clave) + '">' +
       '<label>WhatsApp del celular de caseta (con +52)</label><input data-k="whatsapp" value="' + esc(c.whatsapp) + '">' +
       '<label>Apikey de CallMeBot de ese celular</label><input data-k="callmebot_key" value="' + esc(c.callmebot_key) + '">' +
+      '<label>Usuario de Telegram del celular de caseta (para las llamadas)</label><input data-k="telegram" value="' + esc(c.telegram || '') + '" placeholder="@usuario o +52442...">' +
+      '<div class="mini">Para que entren las llamadas: instalar Telegram en ese celular, ponerle un @usuario y mandarle <b>/start</b> a <b>@CallMeBot_txtbot</b>. Si no tiene @usuario, aquí va el teléfono con +52.</div>' +
       '<div class="mini">Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
-      '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button>';
+      '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button>';
     var bs = d.querySelectorAll('button');
     bs[0].onclick = function () {
       var o = { id: c.id, nombre: c.nombre, activa: true }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.value.trim(); });
@@ -799,6 +801,7 @@ function pintarEquipo() {
       llamar('admin_caseta', { token: S.adminToken, caseta: o }).then(cargarAdmin).catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
     };
     bs[1].onclick = function () { probarWA(c.id); };
+    bs[2].onclick = function () { probarLlamada(c.id); };
     lc.appendChild(d);
   });
 }
@@ -811,6 +814,11 @@ function guardarGuardia() {
 function probarWA(destino) {
   cargando(true, 'Enviando prueba…');
   llamar('admin_probar_wa', { token: S.adminToken, destino: destino === 'admin' ? 'admin' : 'caseta', caseta_id: destino }).then(function (r) { alert(r.enviado ? 'Enviado. Revisa el WhatsApp.' : 'No se pudo enviar: revisa número y apikey (o mira LogApp en la hoja).'); })
+    .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
+}
+function probarLlamada(casetaId) {
+  cargando(true, 'Llamando…');
+  llamar('admin_probar_llamada', { token: S.adminToken, caseta_id: casetaId }).then(function (r) { alert(r.enviado ? 'Llamada enviada. El celular de caseta debe estar sonando en Telegram.' : 'No se pudo llamar: revisa el usuario de Telegram y que ese celular le haya mandado /start a @CallMeBot_txtbot.'); })
     .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
 }
 function guardarAjustes() {
