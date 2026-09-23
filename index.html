@@ -99,6 +99,7 @@
     <div style="display:flex;gap:8px"><button class="icono" onclick="cargarEstado(true)" title="Actualizar">⟳</button><button class="icono" onclick="irAdmin()" title="Administrador">⚙</button></div>
   </header>
   <main>
+    <div class="error" id="err-inicio"></div>
     <h2>¿Quién está de turno?</h2>
     <div class="chips" id="chips-guardia"></div>
 
@@ -136,7 +137,7 @@
     <div id="lista-alberca"></div>
 
     <div id="sec-recientes"><h2>Días anteriores</h2><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.3 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.4 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
   </main>
 </div>
 
@@ -321,9 +322,13 @@ function llamar(accion, params) {
       }).withFailureHandler(function (e) { rej(new Error(e.message || 'Sin conexión')); }).llamar(accion, params || {});
     } else if (/^https:\/\/script\.google\.com\//.test(URL_APP)) {
       // App instalable (GitHub Pages): POST directo al servidor de Apps Script; si falla, JSONP por GET
-      fetch(URL_APP, { method: 'POST', body: JSON.stringify({ accion: accion, params: params || {} }) })
-        .then(function (r) { return r.json(); }).then(listo)
-        .catch(function () { jsonp(accion, params).then(listo).catch(rej); });
+      var corta = null, ctrl = null;
+      try { ctrl = new AbortController(); } catch (e) {}
+      var opc = { method: 'POST', body: JSON.stringify({ accion: accion, params: params || {} }) };
+      if (ctrl) { opc.signal = ctrl.signal; corta = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, TOPE_POST); }
+      fetch(URL_APP, opc)
+        .then(function (r) { clearTimeout(corta); return r.json(); }).then(listo)
+        .catch(function () { clearTimeout(corta); jsonp(accion, params).then(listo).catch(rej); });
     } else {
       // Modo prueba local
       fetch('/api', { method: 'POST', body: JSON.stringify({ accion: accion, params: params || {} }) }).then(function (r) { return r.json(); })
@@ -332,14 +337,21 @@ function llamar(accion, params) {
   });
 }
 var cbN = 0;
-function jsonp(accion, params) {
+// En datos móviles la primera petición a veces se queda colgada; por eso todo tiene tope de tiempo
+var TOPE_POST = 10000, TOPE_JSONP = 20000;
+function jsonp(accion, params, reintento) {
   return new Promise(function (res, rej) {
     var cb = 'cb' + (++cbN) + '_' + Date.now(), s = document.createElement('script');
-    var t = setTimeout(function () { limpia(); rej(new Error('No hubo respuesta. Revisa el internet del celular.')); }, 30000);
+    var falla = function (msg) {
+      limpia();
+      if (reintento) return rej(new Error(msg));
+      jsonp(accion, params, true).then(res).catch(rej);   // un reintento automático
+    };
+    var t = setTimeout(function () { falla('No hubo respuesta del servidor. Revisa los datos del celular y vuelve a intentar.'); }, TOPE_JSONP);
     function limpia() { clearTimeout(t); try { delete window[cb]; } catch (e) { window[cb] = undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
     window[cb] = function (r) { limpia(); res(r); };
-    s.src = URL_APP + '?api=' + encodeURIComponent(accion) + '&callback=' + cb + '&p=' + encodeURIComponent(JSON.stringify(params || {}));
-    s.onerror = function () { limpia(); rej(new Error('No se pudo conectar. Revisa el internet del celular.')); };
+    s.src = URL_APP + '?api=' + encodeURIComponent(accion) + '&callback=' + cb + '&p=' + encodeURIComponent(JSON.stringify(params || {})) + '&_=' + Date.now();
+    s.onerror = function () { falla('No se pudo conectar con el servidor. Revisa los datos del celular y vuelve a intentar.'); };
     document.body.appendChild(s);
   });
 }
@@ -379,9 +391,11 @@ function cargarEstado(manual, arranque) {
   return llamar('estado', { token: S.token }).then(function (r) {
     S.estado = r; S.caseta = r.caseta; pintarInicio();
     ls('cg_estado', JSON.stringify(r));
+    err('err-inicio', '');
   }).catch(function (e) {
     if (/Sesión inválida|Caseta no encontrada/.test(e.message)) { ls('cg_token', null); ls('cg_estado', null); S.token = null; ir('p-clave'); return; }
-    if (manual) alert(e.message);
+    if (S.estado) { err('err-inicio', 'Sin conexión: esto es lo último que se guardó en el celular. Toca ⟳ para actualizar.'); }
+    else { err('err-inicio', e.message + ' Toca ⟳ arriba para volver a intentar.'); }
   }).finally(function () {
     cargando(false);
     clearTimeout(timerEstado); timerEstado = setTimeout(function () { if (document.getElementById('p-inicio').classList.contains('activa')) cargarEstado(); }, 60000);
