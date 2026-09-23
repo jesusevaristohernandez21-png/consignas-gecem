@@ -65,6 +65,14 @@
   .fija{display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer}
   .fija input{width:24px;height:24px;flex:0 0 auto;margin-top:2px}
   .fija.ok{border-color:var(--verde);background:#f2fbf5}
+  .proto{margin:8px 0}
+  .proto .ph{display:flex;gap:8px;align-items:center;cursor:pointer;font-weight:700}
+  .proto .pt{white-space:pre-wrap;margin-top:8px;padding-top:8px;border-top:1px solid #e3e7ec;display:none}
+  .proto.abierto .pt{display:block}
+  .proto .pok{display:none;margin-top:10px}
+  .proto.abierto .pok{display:flex;gap:8px;align-items:center;cursor:pointer;font-weight:700;color:var(--verde)}
+  .proto .pok input{width:22px;height:22px}
+  .proto.leido{border-color:var(--verde);background:#f2fbf5}
   .lista-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--borde);background:#fff}
   .lista-item:first-child{border-radius:12px 12px 0 0}.lista-item:last-child{border-radius:0 0 12px 12px;border-bottom:0}
   .lista{border:1px solid var(--borde);border-radius:12px;margin-bottom:10px}
@@ -100,6 +108,7 @@
   </header>
   <main>
     <div class="error" id="err-inicio"></div>
+    <div class="card" id="card-turno"></div>
     <h2>¿Quién está de turno?</h2>
     <div class="chips" id="chips-guardia"></div>
 
@@ -138,7 +147,24 @@
 
     <div id="sec-recientes"><h2>Días anteriores</h2>
     <div class="mini" style="margin:-4px 0 8px">Esto es historial de turnos pasados, no son consignas de hoy. Lo que quedó sin hacer se cierra en el cambio de turno.</div><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.5 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.7 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+  </main>
+</div>
+
+<!-- ===================== CAMBIO DE TURNO ===================== -->
+<div class="pantalla" id="p-turno">
+  <header><div><h1>Entrada de turno</h1><small id="t-sub"></small></div><button class="icono" onclick="ir('p-inicio')">✕</button></header>
+  <main>
+    <div class="card" id="t-saliente"></div>
+    <h2>¿Quién entra de turno?</h2>
+    <div class="chips" id="t-chips"></div>
+    <h2>¿Qué estás recibiendo?</h2>
+    <div class="mini" style="margin-bottom:6px">Palomea lo que sí recibiste. Lo que no palomees se reporta como faltante.</div>
+    <div id="t-equipo"></div>
+    <label>Novedades que te entregan (opcional)</label>
+    <textarea id="t-nota" rows="3" placeholder="Ej. La pluma está fallando, quedó paquetería de la casa 65, la cámara 3 no graba"></textarea>
+    <button class="btn verde" id="t-enviar" onclick="registrarTurno()">✔ Registrar mi entrada</button>
+    <div class="error" id="err-turno"></div>
   </main>
 </div>
 
@@ -148,6 +174,7 @@
   <main>
     <div class="card"><div class="inst" id="f-inst"></div><div class="mini" style="margin-top:8px">Sube la evidencia como: <b id="f-guardia"></b></div></div>
     <div id="f-fijas" style="display:none"></div>
+    <div id="f-protos" style="display:none"></div>
     <input type="file" id="archivo" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this)">
     <input type="file" id="galeria" accept="image/*" multiple style="display:none" onchange="fotoElegida(this)">
     <div class="dos" id="f-fotos">
@@ -201,6 +228,7 @@
     <div class="tab" data-t="cons" onclick="tab('cons')">Consignas</div>
     <div class="tab" data-t="bit" onclick="tab('bit')">Bitácora</div>
     <div class="tab" data-t="equipo" onclick="tab('equipo')">Equipo</div>
+    <div class="tab" data-t="turnos" onclick="tab('turnos')">Turnos</div>
     <div class="tab" data-t="ajustes" onclick="tab('ajustes')">Ajustes</div>
   </div>
   <main>
@@ -229,13 +257,23 @@
         <button class="btn verde chico" onclick="guardarFija()">＋ Agregar</button>
         <div class="error" id="err-fijas"></div>
       </div>
+      <div class="card" style="margin-top:14px">
+        <div class="titulo">📖 Protocolos</div>
+        <div class="mini">Qué hacer en cada situación. Los guardias los leen y los palomean con la consigna de tipo "Leer protocolos" (por defecto, los lunes a las 10).</div>
+        <div class="lista" id="lista-protos"></div>
+        <label>Título de la situación</label><input id="pr-titulo" placeholder="Ej. Personal de servicios: agua, luz, gas">
+        <label>Pasos a seguir</label><textarea id="pr-texto" rows="6" placeholder="1. Se les deja pasar.&#10;2. Pide identificación y anota el nombre.&#10;3. Avisa al residente por teléfono."></textarea>
+        <button class="btn verde chico" onclick="guardarProtocolo()">＋ Agregar protocolo</button>
+        <button class="btn sec chico" id="pr-cancelar" onclick="editarProtocolo(null)" style="display:none">Cancelar edición</button>
+        <div class="error" id="err-protos"></div>
+      </div>
       <div id="form-cons" class="card" style="display:none">
         <div class="titulo" id="fc-titulo">Nueva consigna</div>
         <label>Caseta</label><select id="c-caseta"></select>
         <label>Título</label><input id="c-titulo" placeholder="Ej. Autos en estacionamiento">
         <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3" placeholder="Ej. Foto general del estacionamiento de visitas mostrando los autos"></textarea>
         <label>Tipo de evidencia</label>
-        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option></select>
+        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option></select>
         <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
         <label>Hora del aviso (24 h)</label><input id="c-hora" type="time">
         <label>Días</label>
@@ -283,6 +321,16 @@
       <div class="error" id="err-equipo"></div>
     </div>
 
+    <!-- Turnos -->
+    <div class="vista" id="v-turnos">
+      <div class="dos"><div><label>Desde</label><input type="date" id="t-desde"></div><div><label>Hasta</label><input type="date" id="t-hasta"></div></div>
+      <button class="btn chico" onclick="cargarTurnos()">Ver cambios de turno</button>
+      <div id="t-kpis" class="kpis"></div>
+      <div id="t-tabla" style="overflow-x:auto"></div>
+      <div id="t-guardias"></div>
+      <div class="error" id="err-turnos"></div>
+    </div>
+
     <!-- Ajustes -->
     <div class="vista" id="v-ajustes">
       <div class="card">
@@ -291,6 +339,9 @@
         <label>Tu apikey de CallMeBot</label><input id="j-key" placeholder="123456">
         <label>Nombre del grupo de la mesa directiva</label><input id="j-grupo" placeholder="Mesa Directiva">
         <label>Hora del reporte diario</label><input id="j-hora" type="number" min="0" max="23" value="7"><div class="mini">Para cambiar la hora del reporte hay que volver a ejecutar <b>instalar</b> en el editor.</div>
+        <label>Hora del relevo en caseta</label><input id="j-cambio" type="time" value="09:00"><div class="mini">A esta hora entra el turno nuevo. Si nadie marca entrada, te avisamos.</div>
+        <label>Minutos de tolerancia para la entrada</label><input id="j-tol" type="number" min="0" max="120" value="10"><div class="mini">Pasando esto cuenta como llegada tarde y te llega WhatsApp.</div>
+        <label>Equipo que se entrega en el relevo</label><input id="j-equipo" placeholder="Llaves|Radio|Lámpara"><div class="mini">Separa con la barra |</div>
         <label>Hora del cambio de turno (corte)</label><input id="j-corte" type="number" min="0" max="23" value="9"><div class="mini">A esa hora, lo que quedó pendiente de días anteriores se cierra como NO CUMPLIDA del turno que le tocaba y deja de aparecerle al guardia que entra.</div>
         <label>NIP de administrador</label><input id="j-nip" type="text">
         <button class="btn chico" onclick="guardarAjustes()">Guardar ajustes</button>
@@ -404,10 +455,73 @@ function cargarEstado(manual, arranque) {
     clearTimeout(timerEstado); timerEstado = setTimeout(function () { if (document.getElementById('p-inicio').classList.contains('activa')) cargarEstado(); }, 60000);
   });
 }
+// ---------- cambio de turno ----------
+function pintarTurno() {
+  var r = S.estado, t = r.turno, el = document.getElementById('card-turno');
+  var hora = r.hora_cambio || '09:00';
+  if (t && t.guardia) {
+    var tarde = +t.retraso_min || 0;
+    el.innerHTML = '<div class="fila"><div><div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div>' +
+      '<div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + ' del ' + esc(String(t.fecha).split('-').reverse().join('/')) +
+      (tarde ? ' · <b style="color:var(--ambar)">' + tarde + ' min tarde</b>' : ' · a tiempo') + '</div>' +
+      (t.falta_equipo ? '<div class="mini" style="color:var(--rojo)">No recibió: ' + esc(t.falta_equipo) + '</div>' : '') +
+      (t.nota ? '<div class="mini">Novedades: ' + esc(t.nota) + '</div>' : '') +
+      '</div></div><button class="btn sec chico" onclick="abrirTurno()">🔄 Registrar cambio de turno</button>';
+  } else {
+    el.innerHTML = '<div class="titulo">🔄 Cambio de turno</div><div class="mini">Nadie ha marcado entrada. El relevo es a las ' + esc(hora) + '.</div>' +
+      '<button class="btn rojo" onclick="abrirTurno()">🟢 Registrar mi entrada de turno</button>';
+  }
+}
+function abrirTurno() {
+  var r = S.estado, t = r.turno;
+  document.getElementById('t-sub').textContent = S.caseta.nombre + ' · relevo de las ' + (r.hora_cambio || '09:00');
+  var sal = document.getElementById('t-saliente');
+  sal.innerHTML = t && t.guardia
+    ? '<div class="titulo">Entregas con: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + '. Al registrar tu entrada queda su hora de salida.</div>'
+    : '<div class="mini">No hay un turno abierto. Esta será la primera entrada registrada.</div>';
+  S.turnoGuardia = (S.guardia && (!t || t.guardia !== S.guardia)) ? S.guardia : null;
+  pintarChipsTurno();
+  var eq = document.getElementById('t-equipo'); eq.innerHTML = '';
+  (r.equipo_turno || []).forEach(function (x, i) {
+    var l = document.createElement('label'); l.className = 'card fija';
+    l.innerHTML = '<input type="checkbox" checked data-e="' + i + '"><span>' + esc(x) + '</span>';
+    l.querySelector('input').value = x;
+    eq.appendChild(l);
+  });
+  document.getElementById('t-nota').value = '';
+  err('err-turno', '');
+  ir('p-turno');
+}
+function pintarChipsTurno() {
+  var ch = document.getElementById('t-chips'); ch.innerHTML = '';
+  ((S.caseta && S.caseta.guardias) || []).forEach(function (g) {
+    var b = document.createElement('button'); b.className = 'chip' + (S.turnoGuardia === g.nombre ? ' sel' : ''); b.textContent = g.nombre;
+    b.onclick = function () { S.turnoGuardia = g.nombre; pintarChipsTurno(); err('err-turno', ''); }; ch.appendChild(b);
+  });
+}
+function registrarTurno() {
+  if (!S.turnoGuardia) return err('err-turno', 'Elige quién entra de turno.');
+  var eq = Array.prototype.slice.call(document.querySelectorAll('#t-equipo input:checked')).map(function (x) { return x.value; });
+  var b = document.getElementById('t-enviar'); b.disabled = true;
+  cargando(true, 'Registrando entrada…');
+  llamar('turno_entrar', { token: S.token, guardia: S.turnoGuardia, equipo: eq, nota: document.getElementById('t-nota').value.trim() })
+    .then(function (r) {
+      S.guardia = S.turnoGuardia; ls('cg_guardia', S.guardia);
+      var m = 'Entrada registrada: ' + r.turno.guardia + ' a las ' + String(r.turno.entrada).slice(11) +
+        (r.turno.retraso_min ? ' (' + r.turno.retraso_min + ' min tarde)' : ' (a tiempo)');
+      if (r.cubrio && r.cubrio.minutos) m += '.\n' + r.cubrio.guardia + ' se quedó cubriendo ' + r.cubrio.minutos + ' min.';
+      if (r.turno.falta_equipo) m += '\nFaltó recibir: ' + r.turno.falta_equipo;
+      alert(m);
+      ir('p-inicio'); return cargarEstado(true);
+    })
+    .catch(function (e) { err('err-turno', e.message); }).finally(function () { cargando(false); b.disabled = false; });
+}
+
 function pintarInicio() {
   var r = S.estado;
   document.getElementById('h-caseta').textContent = r.caseta.nombre;
   document.getElementById('h-fecha').textContent = r.hoy_legible + ' · ' + r.hora;
+  pintarTurno();
   // guardias
   var ch = document.getElementById('chips-guardia'); ch.innerHTML = '';
   if (S.guardia && !r.caseta.guardias.some(function (g) { return g.nombre === S.guardia; })) S.guardia = null;
@@ -522,10 +636,12 @@ function tarjetaPend(it) {
   d.querySelector('button').onclick = function () { abrirFoto(it); };
   return d;
 }
-function esTexto(it) { return it && (it.tipo === 'texto' || it.tipo === 'fijas'); }
+function esTexto(it) { return it && (it.tipo === 'texto' || it.tipo === 'fijas' || it.tipo === 'protocolo'); }
 function esFijas(it) { return it && it.tipo === 'fijas'; }
+function esProto(it) { return it && it.tipo === 'protocolo'; }
 // Texto del botón según el tipo de consigna
 function accion(it, ahora) {
+  if (esProto(it)) return '📖 Leer los protocolos';
   if (esFijas(it)) return '✅ Palomear consignas fijas';
   return (esTexto(it) ? '📝 Enviar reporte' : '📷 Subir foto') + (ahora ? ' ahora' : '');
 }
@@ -593,19 +709,20 @@ function abrirFoto(it, agregar) {
   document.getElementById('f-sub').textContent = 'Hora: ' + it.hora + ' · ' + S.caseta.nombre;
   document.getElementById('f-inst').textContent = it.instruccion || '';
   document.getElementById('f-guardia').textContent = S.guardia;
-  var texto = esTexto(it) && !agregar, fij = esFijas(it) && !agregar;
+  var texto = esTexto(it) && !agregar, fij = esFijas(it) && !agregar, pro = esProto(it) && !agregar;
   document.getElementById('f-detalle').style.display = texto ? 'block' : 'none';
-  document.getElementById('f-nota-label').textContent = fij ? 'Observación (opcional)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
-  document.getElementById('nota').placeholder = fij ? 'Ej. La casa 40 no contestó el WhatsApp' : texto ? 'Ej. Faltan 2 garrafones, papel de baño y pilas para la lámpara' : 'Ej. 3 autos, uno sin placas';
+  document.getElementById('f-nota-label').textContent = (fij || pro) ? 'Observación (opcional)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
+  document.getElementById('nota').placeholder = pro ? 'Ej. No me queda claro qué hacer si el residente no contesta' : fij ? 'Ej. La casa 40 no contestó el WhatsApp' : texto ? 'Ej. Faltan 2 garrafones, papel de baño y pilas para la lámpara' : 'Ej. 3 autos, uno sin placas';
   document.getElementById('f-ayuda').textContent = texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
-  document.getElementById('f-ayuda').style.display = fij ? 'none' : 'block';
-  document.getElementById('f-fotos').style.display = fij ? 'none' : '';
+  document.getElementById('f-ayuda').style.display = (fij || pro) ? 'none' : 'block';
+  document.getElementById('f-fotos').style.display = (fij || pro) ? 'none' : '';
   document.getElementById('btn-enviar').disabled = false;
   document.getElementById('btn-enviar').textContent = texto ? '✔ Enviar reporte' : '✔ Enviar evidencia';
   document.getElementById('nota').value = '';
   document.getElementById('archivo').value = ''; document.getElementById('galeria').value = '';
   pintarMiniaturas();
   pintarFijas(fij);
+  pintarProtocolos(pro);
   err('err-foto', '');
   ir('p-foto');
 }
@@ -627,6 +744,7 @@ function pintarMiniaturas() {
   });
   var texto = esTexto(S.actual) && !S.modoAgregar;
   document.getElementById('f-detalle').style.display = S.blobs.length || texto ? 'block' : 'none';
+  if (esProto(S.actual) && !S.modoAgregar) { contarProtocolos(); return; }
   if (esFijas(S.actual) && !S.modoAgregar) { contarFijas(); return; }
   document.getElementById('btn-enviar').textContent = (texto ? '✔ Enviar reporte' : '✔ Enviar evidencia') + (S.blobs.length > 1 ? ' (' + S.blobs.length + ' fotos)' : '');
   document.getElementById('btn-tomar').textContent = S.blobs.length ? '📷 Otra foto' : '📷 Tomar foto';
@@ -654,6 +772,33 @@ function contarFijas() {
   b.disabled = n < t;
   b.textContent = n < t ? '✔ Palomea todas (' + n + '/' + t + ')' : '✔ Confirmar las ' + t + ' consignas fijas';
 }
+// Protocolos: hay que abrir cada uno y palomearlo
+function pintarProtocolos(mostrar) {
+  var c = document.getElementById('f-protos');
+  c.style.display = mostrar ? 'block' : 'none';
+  if (!mostrar) return;
+  var lista = (S.estado && S.estado.protocolos) || [];
+  if (!lista.length) { c.innerHTML = '<div class="card mini">Todavía no hay protocolos cargados. Avisa a supervisión.</div>'; return; }
+  c.innerHTML = '<div class="mini" style="margin:6px 0">Ábrelos uno por uno, léelos completos y paloméalos. Son ' + lista.length + '.</div>' +
+    lista.map(function (f, i) {
+      return '<div class="card proto" data-i="' + i + '"><div class="ph">📖 <span>' + esc(f.titulo) + '</span><span style="margin-left:auto">›</span></div>' +
+        '<div class="pt">' + esc(f.texto) + '</div>' +
+        '<label class="pok"><input type="checkbox"><span>Ya lo leí y lo entendí</span></label></div>';
+    }).join('') + '<div class="mini" id="f-protos-cuenta" style="margin-bottom:8px"></div>';
+  Array.prototype.forEach.call(c.querySelectorAll('.proto'), function (d) {
+    d.querySelector('.ph').onclick = function () { d.classList.toggle('abierto'); };
+    d.querySelector('input').onchange = function (e) { e.stopPropagation(); d.classList.toggle('leido', this.checked); contarProtocolos(); };
+  });
+  contarProtocolos();
+}
+function contarProtocolos() {
+  var c = document.getElementById('f-protos');
+  var t = c.querySelectorAll('.proto input').length, n = c.querySelectorAll('.proto input:checked').length;
+  var e = document.getElementById('f-protos-cuenta'); if (e) e.textContent = n + ' de ' + t + ' leídos';
+  var b = document.getElementById('btn-enviar');
+  b.disabled = n < t;
+  b.textContent = n < t ? '✔ Falta leer ' + (t - n) : '✔ Confirmar los ' + t + ' protocolos';
+}
 function blobADataURL(b) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(rd.result); }; rd.onerror = rej; rd.readAsDataURL(b); }); }
 function comprimir(file, max, calidad) {
   return new Promise(function (res, rej) {
@@ -669,7 +814,7 @@ function comprimir(file, max, calidad) {
   });
 }
 function enviar() {
-  var texto = esTexto(S.actual) && !S.modoAgregar, fij = esFijas(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
+  var texto = esTexto(S.actual) && !S.modoAgregar, fij = esFijas(S.actual) && !S.modoAgregar, pro = esProto(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
   if (!S.blobs.length && !texto) return err('err-foto', 'Primero toma la foto.');
   if (fij) {
     var lista = (S.estado && S.estado.fijas) || [];
@@ -677,16 +822,22 @@ function enviar() {
     if (!cajas.length || cajas.some(function (x) { return !x.checked; })) return err('err-foto', 'Palomea todas las consignas fijas antes de confirmar.');
     nota = 'Leídas y confirmadas ' + lista.length + ' consignas fijas:\n' + lista.map(function (f) { return '• ' + f.texto; }).join('\n') + (nota ? '\nObservación: ' + nota : '');
   }
+  if (pro) {
+    var lp = (S.estado && S.estado.protocolos) || [];
+    var cp = Array.prototype.slice.call(document.querySelectorAll('#f-protos .proto input'));
+    if (!cp.length || cp.some(function (x) { return !x.checked; })) return err('err-foto', 'Abre y palomea todos los protocolos antes de confirmar.');
+    nota = 'Leyó y confirmó ' + lp.length + ' protocolos:\n' + lp.map(function (f) { return '• ' + f.titulo; }).join('\n') + (nota ? '\nObservación: ' + nota : '');
+  }
   if (texto && !nota) return err('err-foto', 'Escribe el reporte.');
   var btn = document.getElementById('btn-enviar'); btn.disabled = true;
-  cargando(true, 'Enviando ' + (fij ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
+  cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
     return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.modoAgregar ? S.actual.fecha : undefined, nota: nota })
       .then(function (r) {
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
         S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
-        document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : fij ? 'Consignas fijas confirmadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
+        document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : pro ? 'Protocolos confirmados' : fij ? 'Consignas fijas confirmadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
         document.getElementById('l-estado').innerHTML = r.estado === 'cumplida' ? '<span class="etiqueta verde">A TIEMPO</span>' : '<span class="etiqueta ambar">TARDE (' + r.minutos + ' min)</span>';
         document.getElementById('l-grupo').style.display = 'block';
         document.getElementById('l-aviso-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
@@ -760,10 +911,14 @@ function cargarAdmin() {
     document.getElementById('j-corte').value = r.config.hora_corte || 9;
     document.getElementById('j-nip').value = r.config.nip_admin || '';
     document.getElementById('j-url').textContent = r.url || URL_APP;
-    pintarConsignas(); pintarFijasAdmin(); pintarEquipo();
+    pintarConsignas(); pintarFijasAdmin(); pintarProtocolosAdmin(); pintarEquipo();
     var hoy = new Date(), d7 = new Date(); d7.setDate(hoy.getDate() - 6);
     if (!document.getElementById('r-desde').value) { document.getElementById('r-desde').value = fechaISO(d7); document.getElementById('r-hasta').value = fechaISO(hoy); }
     if (!document.getElementById('b-desde').value) { document.getElementById('b-desde').value = fechaISO(d7); document.getElementById('b-hasta').value = fechaISO(hoy); }
+    if (!document.getElementById('t-desde').value) { document.getElementById('t-desde').value = fechaISO(d7); document.getElementById('t-hasta').value = fechaISO(hoy); }
+    document.getElementById('j-cambio').value = r.config.hora_cambio_turno || '09:00';
+    document.getElementById('j-tol').value = r.config.tolerancia_entrada_min || 10;
+    document.getElementById('j-equipo').value = r.config.equipo_turno || '';
   });
 }
 function fechaISO(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
@@ -771,6 +926,7 @@ function tab(n) {
   document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('sel', t.dataset.t === n); });
   document.querySelectorAll('.vista').forEach(function (v) { v.classList.toggle('sel', v.id === 'v-' + n); });
   if (n === 'bit' && !document.getElementById('b-notas').innerHTML) cargarBitacora();
+  if (n === 'turnos' && !document.getElementById('t-tabla').innerHTML) cargarTurnos();
 }
 
 // Bitácora (admin)
@@ -798,7 +954,7 @@ function pintarConsignas() {
   if (!cs.length) el.innerHTML = '<div class="lista-item mini">Sin consignas. Agrega la primera.</div>';
   cs.forEach(function (k) {
     var d = document.createElement('div'); d.className = 'lista-item';
-    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
+    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : String(k.tipo) === 'protocolo' ? ' · 📖 protocolos' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
     d.onclick = function () { editarConsigna(k); }; el.appendChild(d);
   });
 }
@@ -810,7 +966,7 @@ function editarConsigna(k) {
   document.getElementById('c-caseta').value = k ? k.caseta_id : (S.admin.casetas[0] || {}).id;
   document.getElementById('c-titulo').value = k ? k.titulo : '';
   document.getElementById('c-inst').value = k ? k.instruccion : '';
-  document.getElementById('c-tipo').value = k && (String(k.tipo) === 'texto' || String(k.tipo) === 'fijas') ? String(k.tipo) : 'foto';
+  document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
   document.getElementById('c-hora').value = k ? String(k.hora) : '';
   document.getElementById('c-tol').value = k ? k.tolerancia_min : 30;
   document.getElementById('c-lim').value = k ? k.limite_min : 120;
@@ -841,6 +997,90 @@ function borrarConsigna() {
   cargando(true, 'Borrando…');
   llamar('admin_borrar_consigna', { token: S.adminToken, id: consignaEd.id }).then(cargarAdmin).then(function () { document.getElementById('form-cons').style.display = 'none'; })
     .catch(function (e) { err('err-cons', e.message); }).finally(function () { cargando(false); });
+}
+
+// Protocolos (admin)
+var protoEd = null;
+function pintarProtocolosAdmin() {
+  var el = document.getElementById('lista-protos'); if (!el) return;
+  el.innerHTML = '';
+  var fs = (S.admin.protocolos || []).slice().sort(function (a, b) { return (+a.orden || 99) - (+b.orden || 99); });
+  if (!fs.length) { el.innerHTML = '<div class="lista-item mini">Sin protocolos todavía.</div>'; return; }
+  fs.forEach(function (f) {
+    var d = document.createElement('div'); d.className = 'lista-item';
+    d.innerHTML = '<div style="flex:1"><b>' + esc(f.titulo) + '</b><div class="mini">' + esc(String(f.texto).split('\n')[0]).slice(0, 70) + '…' +
+      (String(f.activo) !== 'si' ? ' · <span style="color:var(--rojo)">inactivo</span>' : '') + '</div></div>' +
+      '<button class="chip" data-a="ed">Editar</button><button class="chip" data-a="del">✕</button>';
+    d.querySelector('[data-a="ed"]').onclick = function () { editarProtocolo(f); };
+    d.querySelector('[data-a="del"]').onclick = function () {
+      if (!confirm('¿Quitar el protocolo "' + f.titulo + '"?')) return;
+      cargando(true, 'Borrando…');
+      llamar('admin_borrar_protocolo', { token: S.adminToken, id: f.id }).then(cargarAdmin).catch(function (e) { err('err-protos', e.message); }).finally(function () { cargando(false); });
+    };
+    el.appendChild(d);
+  });
+}
+function editarProtocolo(f) {
+  protoEd = f;
+  document.getElementById('pr-titulo').value = f ? f.titulo : '';
+  document.getElementById('pr-texto').value = f ? f.texto : '';
+  document.getElementById('pr-cancelar').style.display = f ? 'block' : 'none';
+  err('err-protos', '');
+  if (f) document.getElementById('pr-titulo').scrollIntoView({ behavior: 'smooth' });
+}
+function guardarProtocolo() {
+  var t = document.getElementById('pr-titulo').value.trim(), x = document.getElementById('pr-texto').value.trim();
+  if (!t) return err('err-protos', 'Escribe el título de la situación.');
+  if (!x) return err('err-protos', 'Escribe los pasos a seguir.');
+  var caseta = document.getElementById('c-caseta').value || (S.admin.casetas[0] || {}).id;
+  var obj = { id: protoEd ? protoEd.id : null, caseta_id: protoEd ? protoEd.caseta_id : caseta, titulo: t, texto: x,
+    orden: protoEd ? protoEd.orden : ((S.admin.protocolos || []).length + 1) * 10 };
+  err('err-protos', ''); cargando(true, 'Guardando…');
+  llamar('admin_protocolo', { token: S.adminToken, protocolo: obj }).then(cargarAdmin).then(function () { editarProtocolo(null); })
+    .catch(function (e) { err('err-protos', e.message); }).finally(function () { cargando(false); });
+}
+
+// Turnos (admin)
+function cargarTurnos() {
+  var desde = document.getElementById('t-desde').value, hasta = document.getElementById('t-hasta').value;
+  if (!desde || !hasta) return;
+  cargando(true, 'Cargando…'); err('err-turnos', '');
+  llamar('admin_turnos', { token: S.adminToken, desde: desde, hasta: hasta, caseta_id: '' }).then(function (r) {
+    var f = r.filas.slice().reverse();
+    var tarde = f.filter(function (t) { return (+t.retraso_min || 0) > 0; }).length;
+    var minTarde = f.reduce(function (a, t) { return a + (+t.retraso_min || 0); }, 0);
+    var sinNadie = f.filter(function (t) { return !t.guardia; }).length;
+    document.getElementById('t-kpis').innerHTML =
+      '<div class="kpi"><b>' + f.length + '</b>Relevos</div>' +
+      '<div class="kpi" style="color:var(--ambar)"><b>' + tarde + '</b>Con retraso</div>' +
+      '<div class="kpi" style="color:var(--ambar)"><b>' + minTarde + '</b>Min. de retraso</div>' +
+      '<div class="kpi" style="color:var(--rojo)"><b>' + sinNadie + '</b>Sin relevo</div>';
+    document.getElementById('t-tabla').innerHTML = f.length
+      ? '<table><tr><th>Fecha</th><th>Entró</th><th>Hora</th><th>Retraso</th><th>Cubrió al anterior</th><th>Faltó recibir</th><th>Novedades</th></tr>' +
+        f.map(function (t) {
+          var r2 = +t.retraso_min || 0, cub = +t.cubrio_min || 0;
+          return '<tr><td>' + esc(t.fecha.slice(5)) + '</td><td>' + (t.guardia ? esc(t.guardia) : '<b style="color:var(--rojo)">nadie</b>') +
+            '</td><td>' + esc(String(t.entrada || '').slice(11)) + '</td><td' + (r2 ? ' style="color:var(--ambar);font-weight:700"' : '') + '>' + (t.guardia ? r2 + ' min' : '—') +
+            '</td><td>' + (cub ? cub + ' min (' + esc(t.releva_a || '') + ')' : '—') +
+            '</td><td style="color:var(--rojo)">' + esc(t.falta_equipo || '') + '</td><td>' + esc(t.nota || '') + '</td></tr>';
+        }).join('') + '</table>'
+      : '<div class="card mini">Sin cambios de turno en este periodo.</div>';
+    var pg = {};
+    f.forEach(function (t) { if (!t.guardia) return; pg[t.guardia] = pg[t.guardia] || { n: 0, tarde: 0, min: 0, cubrio: 0 };
+      pg[t.guardia].n++; var r3 = +t.retraso_min || 0; if (r3 > 0) { pg[t.guardia].tarde++; pg[t.guardia].min += r3; }
+      pg[t.guardia].cubrio += (+t.cubrio_min || 0); });
+    document.getElementById('t-guardias').innerHTML = '<h2>Por guardia</h2>' + (Object.keys(pg).length
+      ? '<div style="overflow-x:auto"><table><tr><th>Guardia</th><th>Turnos</th><th>Llegó tarde</th><th>Min. que hizo esperar</th><th>Min. que cubrió</th><th>Saldo</th></tr>' +
+        Object.keys(pg).map(function (g) {
+          var x = pg[g], saldo = x.cubrio - x.min;
+          var txt = saldo === 0 ? 'a mano' : saldo > 0 ? 'le deben ' + saldo + ' min' : 'debe ' + (-saldo) + ' min';
+          var col = saldo === 0 ? '' : saldo > 0 ? 'var(--verde)' : 'var(--rojo)';
+          return '<tr><td>' + esc(g) + '</td><td>' + x.n + '</td><td>' + x.tarde + '</td><td>' + x.min + '</td><td>' + x.cubrio +
+            '</td><td' + (col ? ' style="color:' + col + ';font-weight:700"' : '') + '>' + txt + '</td></tr>';
+        }).join('') + '</table></div>' +
+        '<div class="mini" style="margin-top:6px">Saldo = minutos que cubrió al compañero menos minutos que lo hizo esperar. Es para ver cómo van entre ellos; el tiempo extra trabajado se paga aparte.</div>'
+      : '<div class="card mini">Sin datos.</div>');
+  }).catch(function (e) { err('err-turnos', e.message); }).finally(function () { cargando(false); });
 }
 
 // Consignas fijas (admin)
@@ -936,7 +1176,7 @@ function cerrarTurnoAhora() {
     .catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
 }
 function guardarAjustes() {
-  var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, nip_admin: document.getElementById('j-nip').value.trim() };
+  var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, hora_cambio_turno: document.getElementById('j-cambio').value, tolerancia_entrada_min: document.getElementById('j-tol').value, equipo_turno: document.getElementById('j-equipo').value.trim(), nip_admin: document.getElementById('j-nip').value.trim() };
   if (!cfg.nip_admin) return err('err-aj', 'El NIP no puede quedar vacío.');
   cargando(true, 'Guardando…');
   llamar('admin_config', { token: S.adminToken, config: cfg }).then(cargarAdmin).then(function () { err('err-aj', ''); alert('Guardado.'); }).catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
