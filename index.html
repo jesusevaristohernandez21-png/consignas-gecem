@@ -116,6 +116,8 @@
     <div id="sec-abiertas"><h2>Ya se pueden subir</h2><div id="lista-abiertas"></div></div>
     <div id="sec-prox"><h2>Más tarde hoy</h2><div id="lista-prox"></div></div>
     <div id="sec-hechas"><h2>Hechas hoy</h2><div id="lista-hechas"></div></div>
+    <div id="sec-anterior"><h2>Del turno anterior — no es tuyo</h2>
+    <div class="mini" style="margin:-4px 0 8px">Estas eran del turno que salió. Ya quedaron registradas como no cumplidas. Solo súbelas si tú las hiciste.</div><div id="lista-anterior"></div></div>
 
     <h2>📝 Notas de la jornada</h2>
     <div class="card">
@@ -147,7 +149,7 @@
 
     <div id="sec-recientes"><h2>Días anteriores</h2>
     <div class="mini" style="margin:-4px 0 8px">Esto es historial de turnos pasados, no son consignas de hoy. Lo que quedó sin hacer se cierra en el cambio de turno.</div><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.7 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.8 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
   </main>
 </div>
 
@@ -529,14 +531,16 @@ function pintarInicio() {
     var b = document.createElement('button'); b.className = 'chip' + (S.guardia === g.nombre ? ' sel' : ''); b.textContent = g.nombre;
     b.onclick = function () { S.guardia = g.nombre; ls('cg_guardia', g.nombre); pintarInicio(); }; ch.appendChild(b);
   });
-  var grupos = { pendiente: [], abierta: [], proxima: [], hecha: [] };
+  var grupos = { pendiente: [], abierta: [], proxima: [], hecha: [], anterior: [] };
   r.items.forEach(function (it) {
-    if (it.estado === 'pendiente' || it.estado === 'fallida') grupos.pendiente.push(it);
+    if (it.turno_anterior && (it.estado === 'pendiente' || it.estado === 'fallida')) grupos.anterior.push(it);
+    else if (it.estado === 'pendiente' || it.estado === 'fallida') grupos.pendiente.push(it);
     else if (it.estado === 'abierta') grupos.abierta.push(it);
     else if (it.estado === 'proxima') grupos.proxima.push(it);
     else grupos.hecha.push(it);
   });
   pintarLista('lista-pend', 'sec-pend', grupos.pendiente, tarjetaPend);
+  pintarLista('lista-anterior', 'sec-anterior', grupos.anterior, tarjetaAnterior);
   pintarLista('lista-abiertas', 'sec-abiertas', grupos.abierta, tarjetaAbierta);
   pintarLista('lista-prox', 'sec-prox', grupos.proxima, tarjetaProx);
   pintarLista('lista-hechas', 'sec-hechas', grupos.hecha, tarjetaHecha);
@@ -633,6 +637,16 @@ function tarjetaPend(it) {
   d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
     '<div class="contador" style="margin-top:8px">⏰ ' + txt + '</div>' +
     '<button class="btn rojo">' + accion(it, true) + '</button>';
+  d.querySelector('button').onclick = function () { abrirFoto(it); };
+  return d;
+}
+// Consigna que le tocaba al turno que salió: gris, sin urgencia, pero se puede subir
+function tarjetaAnterior(it) {
+  var d = document.createElement('div'); d.className = 'card falla';
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div>' +
+    '<div class="mini">' + esc(it.instruccion) + '</div>' +
+    '<span class="etiqueta gris">NO CUMPLIDA · TURNO ANTERIOR</span></div><div class="hora">' + esc(it.hora) + '</div></div>' +
+    '<button class="btn sec chico">' + accion(it) + ' de todos modos</button>';
   d.querySelector('button').onclick = function () { abrirFoto(it); };
   return d;
 }
