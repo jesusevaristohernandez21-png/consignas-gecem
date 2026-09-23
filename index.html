@@ -136,8 +136,9 @@
     </div>
     <div id="lista-alberca"></div>
 
-    <div id="sec-recientes"><h2>Días anteriores</h2><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.4 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <div id="sec-recientes"><h2>Días anteriores</h2>
+    <div class="mini" style="margin:-4px 0 8px">Esto es historial de turnos pasados, no son consignas de hoy. Lo que quedó sin hacer se cierra en el cambio de turno.</div><div id="lista-recientes"></div></div>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.5 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
   </main>
 </div>
 
@@ -290,9 +291,11 @@
         <label>Tu apikey de CallMeBot</label><input id="j-key" placeholder="123456">
         <label>Nombre del grupo de la mesa directiva</label><input id="j-grupo" placeholder="Mesa Directiva">
         <label>Hora del reporte diario</label><input id="j-hora" type="number" min="0" max="23" value="7"><div class="mini">Para cambiar la hora del reporte hay que volver a ejecutar <b>instalar</b> en el editor.</div>
+        <label>Hora del cambio de turno (corte)</label><input id="j-corte" type="number" min="0" max="23" value="9"><div class="mini">A esa hora, lo que quedó pendiente de días anteriores se cierra como NO CUMPLIDA del turno que le tocaba y deja de aparecerle al guardia que entra.</div>
         <label>NIP de administrador</label><input id="j-nip" type="text">
         <button class="btn chico" onclick="guardarAjustes()">Guardar ajustes</button>
         <button class="btn sec chico" onclick="probarWA('admin')">Probar aviso a mi WhatsApp</button>
+        <button class="btn sec chico" onclick="cerrarTurnoAhora()">🔒 Cerrar ahora los días anteriores</button>
       </div>
       <div class="card">
         <div class="titulo">Link de la app</div>
@@ -502,7 +505,8 @@ function pintarLista(idLista, idSec, items, fn) {
   items.forEach(function (it) { el.appendChild(fn(it)); });
 }
 function claseEstado(e) { return { cumplida: 'ok', tarde: 'tarde', fallida: 'falla', pendiente: 'pend' }[e] || ''; }
-function etiquetaEstado(e) {
+function etiquetaEstado(e, otroDia) {
+  if (otroDia && e === 'pendiente') return '<span class="etiqueta rojo">SIN HACER · TURNO ANTERIOR</span>';
   var m = { cumplida: ['verde', 'CUMPLIDA'], tarde: ['ambar', 'TARDE'], fallida: ['rojo', 'NO CUMPLIDA'], pendiente: ['rojo', 'PENDIENTE'] }[e] || ['gris', e];
   return '<span class="etiqueta ' + m[0] + '">' + m[1] + '</span>';
 }
@@ -542,7 +546,7 @@ function tarjetaProx(it) {
 function tarjetaHecha(it, fecha) {
   var d = document.createElement('div'); d.className = 'card ' + claseEstado(it.estado);
   var conNota = it.nota && (esTexto(it) || String(it.nota).length > 40);
-  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="mini">' + (fecha ? esc(fecha) + ' · ' : '') + esc(it.guardia) + ' · ' + esc(String(it.subida || '').slice(11)) + (it.nota && !conNota ? ' · ' + esc(it.nota) : '') + '</div>' + etiquetaEstado(it.estado) + '</div></div>' +
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="mini">' + (fecha ? esc(fecha) + ' · ' : '') + esc(it.guardia) + ' · ' + esc(String(it.subida || '').slice(11)) + (it.nota && !conNota ? ' · ' + esc(it.nota) : '') + '</div>' + etiquetaEstado(it.estado, !!fecha) + '</div></div>' +
     (conNota ? '<div style="margin-top:6px;white-space:pre-wrap">' + esc(it.nota) + '</div>' : '') +
     (it.compartir_grupo && !it.compartido ? '<div class="aviso">Falta mandarla al grupo de la mesa directiva.</div>' : '') +
     (it.compartido ? '<div class="mini" style="margin-top:6px">✔ Enviada al grupo</div>' : '') +
@@ -753,6 +757,7 @@ function cargarAdmin() {
     document.getElementById('j-key').value = r.config.admin_callmebot_key || '';
     document.getElementById('j-grupo').value = r.config.nombre_grupo || '';
     document.getElementById('j-hora').value = r.config.hora_reporte || 7;
+    document.getElementById('j-corte').value = r.config.hora_corte || 9;
     document.getElementById('j-nip').value = r.config.nip_admin || '';
     document.getElementById('j-url').textContent = r.url || URL_APP;
     pintarConsignas(); pintarFijasAdmin(); pintarEquipo();
@@ -924,8 +929,14 @@ function probarLlamada(casetaId) {
   llamar('admin_probar_llamada', { token: S.adminToken, caseta_id: casetaId }).then(function (r) { alert(r.enviado ? 'Llamada enviada. El celular de caseta debe estar sonando en Telegram.' : 'No se pudo llamar: revisa el usuario de Telegram y que ese celular le haya mandado /start a @CallMeBot_txtbot.'); })
     .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
 }
+function cerrarTurnoAhora() {
+  if (!confirm('Se cierran como NO CUMPLIDAS todas las consignas pendientes de días anteriores. ¿Continuar?')) return;
+  cargando(true, 'Cerrando…');
+  llamar('admin_corte', { token: S.adminToken }).then(function (r) { alert(r.cerradas ? 'Se cerraron ' + r.cerradas + ' consignas de días anteriores.' : 'No había nada pendiente de días anteriores.'); }).then(cargarAdmin)
+    .catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
+}
 function guardarAjustes() {
-  var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, nip_admin: document.getElementById('j-nip').value.trim() };
+  var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, nip_admin: document.getElementById('j-nip').value.trim() };
   if (!cfg.nip_admin) return err('err-aj', 'El NIP no puede quedar vacío.');
   cargando(true, 'Guardando…');
   llamar('admin_config', { token: S.adminToken, config: cfg }).then(cargarAdmin).then(function () { err('err-aj', ''); alert('Guardado.'); }).catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
