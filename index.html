@@ -148,9 +148,7 @@
     </div>
     <div id="lista-alberca"></div>
 
-    <div id="sec-recientes"><h2>Días anteriores</h2>
-    <div class="mini" style="margin:-4px 0 8px">Esto es historial de turnos pasados, no son consignas de hoy. Lo que quedó sin hacer se cierra en el cambio de turno.</div><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.10 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.10.1 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
   </main>
 </div>
 
@@ -563,9 +561,7 @@ function pintarInicio() {
   pintarLista('lista-abiertas', 'sec-abiertas', grupos.abierta, tarjetaAbierta);
   pintarLista('lista-prox', 'sec-prox', grupos.proxima, tarjetaProx);
   pintarLista('lista-hechas', 'sec-hechas', grupos.hecha, tarjetaHecha);
-  var rec = document.getElementById('lista-recientes'); rec.innerHTML = '';
-  document.getElementById('sec-recientes').style.display = r.recientes.length ? 'block' : 'none';
-  r.recientes.forEach(function (e) { rec.appendChild(tarjetaHecha(e, e.fecha)); });
+  // v2.10.1: "Días anteriores" ya no se muestra al guardia; ese historial lo revisa el administrador en Cumplimiento.
   pintarBitacora(r.bitacora || []);
 }
 // ---------- bitácora: notas de la jornada y alberca ----------
