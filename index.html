@@ -92,8 +92,9 @@
   <main class="centro">
     <div class="logo">GECEM</div>
     <div style="font-weight:700;font-size:18px;color:var(--azul2)">Consignas de vigilancia</div>
-    <p class="mini" style="margin-top:30px">Escribe la clave de la caseta para activar este celular.</p>
-    <input id="clave" type="tel" inputmode="numeric" placeholder="Clave de caseta" style="text-align:center;font-size:24px;letter-spacing:6px">
+    <p class="mini" style="margin-top:30px">Escribe el usuario y la contraseña de la caseta para activar este celular.</p>
+    <input id="usuario" type="text" autocapitalize="none" autocomplete="username" spellcheck="false" placeholder="Usuario (ej. santafe)" style="text-align:center;font-size:20px">
+    <input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña" style="text-align:center;font-size:20px;margin-top:10px">
     <button class="btn" onclick="entrar()">Entrar</button>
     <div class="error" id="err-clave"></div>
     <p class="mini" style="margin-top:40px">¿Eres supervisor? <a href="#" onclick="irAdmin();return false">Entrar como administrador</a></p>
@@ -149,7 +150,7 @@
 
     <div id="sec-recientes"><h2>Días anteriores</h2>
     <div class="mini" style="margin:-4px 0 8px">Esto es historial de turnos pasados, no son consignas de hoy. Lo que quedó sin hacer se cierra en el cambio de turno.</div><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.8 (instalable) · <a href="#" onclick="salir();return false">Cambiar de caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.9 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
   </main>
 </div>
 
@@ -248,6 +249,7 @@
 
     <!-- Consignas -->
     <div class="vista" id="v-cons">
+      <div class="card" style="background:#eaf2fb;border-color:var(--azul2)"><label style="margin-top:0">Caseta que estás administrando</label><select id="cons-caseta" onchange="cambiarCasetaCons()"></select><div class="mini" style="margin-top:6px">Las consignas, las consignas fijas y los protocolos de abajo son solo de esta caseta.</div></div>
       <button class="btn chico" onclick="editarConsigna(null)">＋ Nueva consigna</button>
       <div class="lista" id="lista-cons"></div>
       <div class="card" style="margin-top:14px">
@@ -320,12 +322,19 @@
       </div>
       <h2>Casetas</h2>
       <div id="lista-casetas"></div>
+      <div class="card"><div class="titulo">＋ Nueva caseta</div>
+        <label>Nombre</label><input id="nc-nombre" placeholder="Ej. Dublín">
+        <label>Usuario</label><input id="nc-usuario" autocapitalize="none" placeholder="Ej. dublin (sin espacios ni acentos)">
+        <label>Contraseña</label><input id="nc-clave" placeholder="Ej. GECEM2026">
+        <button class="btn chico" onclick="nuevaCaseta()">Crear caseta</button>
+        <div class="mini" style="margin-top:6px">Después de crearla, agrega a sus guardias aquí arriba y sus consignas en la pestaña Consignas (eligiendo la caseta).</div></div>
       <div class="error" id="err-equipo"></div>
     </div>
 
     <!-- Turnos -->
     <div class="vista" id="v-turnos">
       <div class="dos"><div><label>Desde</label><input type="date" id="t-desde"></div><div><label>Hasta</label><input type="date" id="t-hasta"></div></div>
+      <label>Caseta</label><select id="t-caseta"></select>
       <button class="btn chico" onclick="cargarTurnos()">Ver cambios de turno</button>
       <div id="t-kpis" class="kpis"></div>
       <div id="t-tabla" style="overflow-x:auto"></div>
@@ -420,7 +429,7 @@ function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); i
 // ---------- arranque ----------
 function arrancar() {
   S.token = ls('cg_token'); S.guardia = ls('cg_guardia');
-  if (!S.token) { ir('p-clave'); return; }
+  if (!S.token) { document.getElementById('usuario').value = ls('cg_usuario') || ''; ir('p-clave'); return; }
   // Pinta al instante lo último que se vio (guardado en el celular) y actualiza en segundo plano
   var guardado = null; try { guardado = JSON.parse(ls('cg_estado') || 'null'); } catch (e) {}
   if (guardado && guardado.caseta) { S.estado = guardado; S.caseta = guardado.caseta; pintarInicio(); ir('p-inicio'); cargarEstado(); return; }
@@ -430,10 +439,12 @@ function arrancar() {
 }
 function entrar() {
   err('err-clave', '');
-  var clave = document.getElementById('clave').value.trim();
-  if (!clave) return err('err-clave', 'Escribe la clave.');
+  var usuario = document.getElementById('usuario').value.trim(), clave = document.getElementById('clave').value.trim();
+  if (!usuario) return err('err-clave', 'Escribe el usuario de la caseta.');
+  if (!clave) return err('err-clave', 'Escribe la contrase\u00f1a.');
+  ls('cg_usuario', usuario);
   cargando(true, 'Entrando…');
-  llamar('entrar', { clave: clave }).then(function (r) {
+  llamar('entrar', { usuario: usuario, clave: clave }).then(function (r) {
     S.token = r.token; S.caseta = r.caseta; ls('cg_token', r.token);
     ir('p-inicio'); return cargarEstado();
   }).catch(function (e) { err('err-clave', e.message); }).finally(function () { cargando(false); });
@@ -914,9 +925,11 @@ function entrarAdmin() {
 function cargarAdmin() {
   return llamar('admin_datos', { token: S.adminToken }).then(function (r) {
     S.admin = r;
-    ['r-caseta', 'b-caseta', 'c-caseta', 'g-caseta'].forEach(function (id) {
-      var s = document.getElementById(id); s.innerHTML = id === 'r-caseta' || id === 'b-caseta' ? '<option value="">Todas</option>' : '';
-      r.casetas.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.nombre; s.appendChild(o); });
+    ['r-caseta', 'b-caseta', 't-caseta', 'c-caseta', 'g-caseta', 'cons-caseta'].forEach(function (id) {
+      var s = document.getElementById(id); if (!s) return; var prev = s.value;
+      s.innerHTML = (id === 'r-caseta' || id === 'b-caseta' || id === 't-caseta') ? '<option value="">Todas las casetas</option>' : '';
+      r.casetas.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.nombre + (String(c.activa) !== 'si' ? ' (inactiva)' : ''); s.appendChild(o); });
+      if (prev && Array.prototype.some.call(s.options, function (o) { return o.value === prev; })) s.value = prev;
     });
     document.getElementById('j-wa').value = r.config.admin_whatsapp || '';
     document.getElementById('j-key').value = r.config.admin_callmebot_key || '';
@@ -962,10 +975,13 @@ function cargarBitacora() {
 function nombreCaseta(id) { var c = (S.admin.casetas || []).filter(function (x) { return String(x.id) === String(id); })[0]; return c ? c.nombre : id; }
 
 // Consignas
+// Caseta elegida en la pestaña Consignas (consignas, fijas y protocolos se administran por caseta)
+function casetaCons() { var s = document.getElementById('cons-caseta'); return (s && s.value) || ((S.admin && S.admin.casetas[0]) || {}).id; }
+function cambiarCasetaCons() { document.getElementById('form-cons').style.display = 'none'; editarProtocolo(null); pintarConsignas(); pintarFijasAdmin(); pintarProtocolosAdmin(); }
 function pintarConsignas() {
   var el = document.getElementById('lista-cons'); el.innerHTML = '';
-  var cs = S.admin.consignas.slice().sort(function (a, b) { return String(a.hora) < String(b.hora) ? -1 : 1; });
-  if (!cs.length) el.innerHTML = '<div class="lista-item mini">Sin consignas. Agrega la primera.</div>';
+  var cs = S.admin.consignas.filter(function (k) { return String(k.caseta_id) === String(casetaCons()); }).sort(function (a, b) { return String(a.hora) < String(b.hora) ? -1 : 1; });
+  if (!cs.length) el.innerHTML = '<div class="lista-item mini">Sin consignas en esta caseta. Agrega la primera.</div>';
   cs.forEach(function (k) {
     var d = document.createElement('div'); d.className = 'lista-item';
     d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : String(k.tipo) === 'protocolo' ? ' · 📖 protocolos' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
@@ -977,7 +993,7 @@ var consignaEd = null;
 function editarConsigna(k) {
   consignaEd = k; err('err-cons', '');
   document.getElementById('fc-titulo').textContent = k ? 'Editar consigna' : 'Nueva consigna';
-  document.getElementById('c-caseta').value = k ? k.caseta_id : (S.admin.casetas[0] || {}).id;
+  document.getElementById('c-caseta').value = k ? k.caseta_id : casetaCons();
   document.getElementById('c-titulo').value = k ? k.titulo : '';
   document.getElementById('c-inst').value = k ? k.instruccion : '';
   document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
@@ -1018,7 +1034,7 @@ var protoEd = null;
 function pintarProtocolosAdmin() {
   var el = document.getElementById('lista-protos'); if (!el) return;
   el.innerHTML = '';
-  var fs = (S.admin.protocolos || []).slice().sort(function (a, b) { return (+a.orden || 99) - (+b.orden || 99); });
+  var fs = (S.admin.protocolos || []).filter(function (f) { return String(f.caseta_id) === String(casetaCons()); }).sort(function (a, b) { return (+a.orden || 99) - (+b.orden || 99); });
   if (!fs.length) { el.innerHTML = '<div class="lista-item mini">Sin protocolos todavía.</div>'; return; }
   fs.forEach(function (f) {
     var d = document.createElement('div'); d.className = 'lista-item';
@@ -1046,7 +1062,7 @@ function guardarProtocolo() {
   var t = document.getElementById('pr-titulo').value.trim(), x = document.getElementById('pr-texto').value.trim();
   if (!t) return err('err-protos', 'Escribe el título de la situación.');
   if (!x) return err('err-protos', 'Escribe los pasos a seguir.');
-  var caseta = document.getElementById('c-caseta').value || (S.admin.casetas[0] || {}).id;
+  var caseta = casetaCons();
   var obj = { id: protoEd ? protoEd.id : null, caseta_id: protoEd ? protoEd.caseta_id : caseta, titulo: t, texto: x,
     orden: protoEd ? protoEd.orden : ((S.admin.protocolos || []).length + 1) * 10 };
   err('err-protos', ''); cargando(true, 'Guardando…');
@@ -1059,7 +1075,7 @@ function cargarTurnos() {
   var desde = document.getElementById('t-desde').value, hasta = document.getElementById('t-hasta').value;
   if (!desde || !hasta) return;
   cargando(true, 'Cargando…'); err('err-turnos', '');
-  llamar('admin_turnos', { token: S.adminToken, desde: desde, hasta: hasta, caseta_id: '' }).then(function (r) {
+  llamar('admin_turnos', { token: S.adminToken, desde: desde, hasta: hasta, caseta_id: document.getElementById('t-caseta').value }).then(function (r) {
     var f = r.filas.slice().reverse();
     var tarde = f.filter(function (t) { return (+t.retraso_min || 0) > 0; }).length;
     var minTarde = f.reduce(function (a, t) { return a + (+t.retraso_min || 0); }, 0);
@@ -1073,7 +1089,7 @@ function cargarTurnos() {
       ? '<table><tr><th>Fecha</th><th>Entró</th><th>Hora</th><th>Retraso</th><th>Cubrió al anterior</th><th>Faltó recibir</th><th>Novedades</th></tr>' +
         f.map(function (t) {
           var r2 = +t.retraso_min || 0, cub = +t.cubrio_min || 0;
-          return '<tr><td>' + esc(t.fecha.slice(5)) + '</td><td>' + (t.guardia ? esc(t.guardia) : '<b style="color:var(--rojo)">nadie</b>') +
+          return '<tr><td>' + esc(t.fecha.slice(5)) + (document.getElementById('t-caseta').value ? '' : '<div class="mini">' + esc(nombreCaseta(t.caseta_id)) + '</div>') + '</td><td>' + (t.guardia ? esc(t.guardia) : '<b style="color:var(--rojo)">nadie</b>') +
             '</td><td>' + esc(String(t.entrada || '').slice(11)) + '</td><td' + (r2 ? ' style="color:var(--ambar);font-weight:700"' : '') + '>' + (t.guardia ? r2 + ' min' : '—') +
             '</td><td>' + (cub ? cub + ' min (' + esc(t.releva_a || '') + ')' : '—') +
             '</td><td style="color:var(--rojo)">' + esc(t.falta_equipo || '') + '</td><td>' + esc(t.nota || '') + '</td></tr>';
@@ -1101,7 +1117,7 @@ function cargarTurnos() {
 function pintarFijasAdmin() {
   var el = document.getElementById('lista-fijas'); if (!el) return;
   el.innerHTML = '';
-  var fs = (S.admin.fijas || []).slice().sort(function (a, b) { return (+a.orden || 99) - (+b.orden || 99); });
+  var fs = (S.admin.fijas || []).filter(function (f) { return String(f.caseta_id) === String(casetaCons()); }).sort(function (a, b) { return (+a.orden || 99) - (+b.orden || 99); });
   if (!fs.length) { el.innerHTML = '<div class="lista-item mini">Sin consignas fijas todavía.</div>'; return; }
   fs.forEach(function (f) {
     var d = document.createElement('div'); d.className = 'lista-item';
@@ -1123,7 +1139,7 @@ function pintarFijasAdmin() {
 function guardarFija() {
   var t = document.getElementById('fj-texto').value.trim();
   if (!t) return err('err-fijas', 'Escribe la consigna fija.');
-  var caseta = document.getElementById('c-caseta').value || (S.admin.casetas[0] || {}).id;
+  var caseta = casetaCons();
   var orden = ((S.admin.fijas || []).length + 1) * 10;
   guardarFijaObj({ caseta_id: caseta, texto: t, orden: orden }, function () { document.getElementById('fj-texto').value = ''; });
 }
@@ -1136,10 +1152,15 @@ function guardarFijaObj(fija, luego) {
 // Equipo
 function pintarEquipo() {
   var el = document.getElementById('lista-guardias'); el.innerHTML = '';
-  S.admin.guardias.forEach(function (g) {
+  S.admin.guardias.slice().sort(function (a, b) { return String(a.caseta_id).localeCompare(String(b.caseta_id)); }).forEach(function (g) {
     var d = document.createElement('div'); d.className = 'lista-item';
-    d.innerHTML = '<div><b>' + esc(g.nombre) + '</b><div class="mini">' + esc(nombreCaseta(g.caseta_id)) + (String(g.activo) !== 'si' ? ' · <span style="color:var(--rojo)">inactivo</span>' : '') + '</div></div><button class="chip">' + (String(g.activo) === 'si' ? 'Dar de baja' : 'Reactivar') + '</button>';
-    d.querySelector('button').onclick = function () {
+    d.innerHTML = '<div><b>' + esc(g.nombre) + '</b><div class="mini">' + esc(nombreCaseta(g.caseta_id)) + (String(g.activo) !== 'si' ? ' · <span style="color:var(--rojo)">inactivo</span>' : '') + '</div></div><div style="display:flex;gap:6px"><button class="chip" data-a="ren">Renombrar</button><button class="chip" data-a="baja">' + (String(g.activo) === 'si' ? 'Dar de baja' : 'Reactivar') + '</button></div>';
+    d.querySelector('[data-a="ren"]').onclick = function () {
+        var n = prompt('Nombre del guardia:', g.nombre); if (n === null || !n.trim()) return;
+        cargando(true, 'Guardando\u2026');
+        llamar('admin_guardia', { token: S.adminToken, guardia: { id: g.id, nombre: n.trim(), caseta_id: g.caseta_id, activo: String(g.activo) === 'si' } }).then(cargarAdmin).catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
+      };
+      d.querySelector('[data-a="baja"]').onclick = function () {
       cargando(true, 'Guardando…');
       llamar('admin_guardia', { token: S.adminToken, guardia: { id: g.id, nombre: g.nombre, caseta_id: g.caseta_id, activo: String(g.activo) !== 'si' } }).then(cargarAdmin).catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
     };
@@ -1149,7 +1170,9 @@ function pintarEquipo() {
   S.admin.casetas.forEach(function (c) {
     var d = document.createElement('div'); d.className = 'card';
     d.innerHTML = '<div class="titulo">' + esc(c.nombre) + '</div>' +
-      '<label>Clave de caseta (la que se escribe en el celular)</label><input data-k="clave" value="' + esc(c.clave) + '">' +
+      '<label>Nombre de la caseta</label><input data-k="nombre" value="' + esc(c.nombre) + '">' +
+        '<label>Usuario (con el que entra el celular de caseta)</label><input data-k="usuario" autocapitalize="none" value="' + esc(c.usuario || c.id) + '">' +
+        '<label>Contrase\u00f1a</label><input data-k="clave" value="' + esc(c.clave) + '">' +
       '<label>WhatsApp del celular de caseta (con +52)</label><input data-k="whatsapp" value="' + esc(c.whatsapp) + '">' +
       '<label>Apikey de CallMeBot de ese celular</label><input data-k="callmebot_key" value="' + esc(c.callmebot_key) + '">' +
       '<label>Usuario de Telegram del celular de caseta (para las llamadas)</label><input data-k="telegram" value="' + esc(c.telegram || '') + '" placeholder="@usuario o +52442...">' +
@@ -1158,7 +1181,7 @@ function pintarEquipo() {
       '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button>';
     var bs = d.querySelectorAll('button');
     bs[0].onclick = function () {
-      var o = { id: c.id, nombre: c.nombre, activa: true }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.value.trim(); });
+      var o = { id: c.id, nombre: c.nombre, activa: String(c.activa) === 'si' }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.value.trim(); });
       cargando(true, 'Guardando…');
       llamar('admin_caseta', { token: S.adminToken, caseta: o }).then(cargarAdmin).catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
     };
@@ -1166,6 +1189,13 @@ function pintarEquipo() {
     bs[2].onclick = function () { probarLlamada(c.id); };
     lc.appendChild(d);
   });
+}
+function nuevaCaseta() {
+  var o = { nombre: document.getElementById('nc-nombre').value.trim(), usuario: document.getElementById('nc-usuario').value.trim(), clave: document.getElementById('nc-clave').value.trim(), activa: true };
+  if (!o.nombre || !o.usuario || !o.clave) return err('err-equipo', 'Escribe nombre, usuario y contrase\u00f1a de la caseta nueva.');
+  cargando(true, 'Creando caseta\u2026');
+  llamar('admin_caseta', { token: S.adminToken, caseta: o }).then(function () { ['nc-nombre', 'nc-usuario', 'nc-clave'].forEach(function (i) { document.getElementById(i).value = ''; }); err('err-equipo', ''); return cargarAdmin(); })
+    .catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
 }
 function guardarGuardia() {
   var n = document.getElementById('g-nombre').value.trim(); if (!n) return err('err-equipo', 'Escribe el nombre.');
@@ -1212,7 +1242,7 @@ function pintarReporte(filas, desde, hasta) {
   document.getElementById('btn-pdf').style.display = 'block';
   // matriz fecha x consigna
   var cons = {}, fechas = {};
-  filas.forEach(function (e) { cons[e.consigna_id] = e.titulo + ' ' + String(e.programada).slice(11); fechas[e.fecha] = 1; });
+  filas.forEach(function (e) { cons[e.consigna_id] = (document.getElementById('r-caseta').value ? '' : nombreCaseta(e.caseta_id) + ' · ') + e.titulo + ' ' + String(e.programada).slice(11); fechas[e.fecha] = 1; });
   var ck = Object.keys(cons).sort(function (a, b) { return cons[a].slice(-5) < cons[b].slice(-5) ? -1 : 1; }), fk = Object.keys(fechas).sort().reverse();
   var h = '<table><tr><th>Fecha</th>' + ck.map(function (k) { return '<th>' + esc(cons[k]) + '</th>'; }).join('') + '</tr>';
   fk.forEach(function (f) {
@@ -1239,6 +1269,7 @@ function descargarPDF() {
 }
 
 document.getElementById('clave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+document.getElementById('usuario').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('clave').focus(); });
 document.getElementById('nip').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrarAdmin(); });
 arrancar();
 </script>
