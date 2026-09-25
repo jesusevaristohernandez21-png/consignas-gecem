@@ -150,7 +150,7 @@
 
     <div id="sec-recientes"><h2>Días anteriores</h2>
     <div class="mini" style="margin:-4px 0 8px">Esto es historial de turnos pasados, no son consignas de hoy. Lo que quedó sin hacer se cierra en el cambio de turno.</div><div id="lista-recientes"></div></div>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.9 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v2.10 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
   </main>
 </div>
 
@@ -216,8 +216,9 @@
 <div class="pantalla" id="p-nip">
   <header><div><h1>Administrador</h1><small>Consignas GECEM</small></div><button class="icono" onclick="volverDeAdmin()">✕</button></header>
   <main class="centro">
-    <p class="mini" style="margin-top:30px">NIP de administrador</p>
-    <input id="nip" type="password" inputmode="numeric" placeholder="NIP" style="text-align:center;font-size:24px;letter-spacing:6px">
+    <p class="mini" style="margin-top:30px">Escribe el usuario y la contraseña del administrador.</p>
+    <input id="adm-usuario" type="text" autocapitalize="none" autocomplete="username" spellcheck="false" placeholder="Usuario" style="text-align:center;font-size:20px">
+    <input id="adm-clave" type="password" autocomplete="current-password" placeholder="Contraseña" style="text-align:center;font-size:20px;margin-top:10px">
     <button class="btn" onclick="entrarAdmin()">Entrar</button>
     <div class="error" id="err-nip"></div>
   </main>
@@ -354,7 +355,14 @@
         <label>Minutos de tolerancia para la entrada</label><input id="j-tol" type="number" min="0" max="120" value="10"><div class="mini">Pasando esto cuenta como llegada tarde y te llega WhatsApp.</div>
         <label>Equipo que se entrega en el relevo</label><input id="j-equipo" placeholder="Llaves|Radio|Lámpara"><div class="mini">Separa con la barra |</div>
         <label>Hora del cambio de turno (corte)</label><input id="j-corte" type="number" min="0" max="23" value="9"><div class="mini">A esa hora, lo que quedó pendiente de días anteriores se cierra como NO CUMPLIDA del turno que le tocaba y deja de aparecerle al guardia que entra.</div>
-        <label>NIP de administrador</label><input id="j-nip" type="text">
+        <label>Usuario del administrador</label><input id="j-adm-usuario" autocapitalize="none" placeholder="gecem">
+        <label>Contraseña del administrador</label><input id="j-adm-clave" type="text" placeholder="Gecem2026"><div class="mini">Con estos dos entras al panel de administrador. Cámbialos aquí cuando quieras.</div>
+        <label style="margin-top:14px">Llamadas de voz a la caseta (Telegram)</label>
+        <label class="mini" style="display:flex;align-items:center;gap:8px;font-weight:normal"><input id="j-llam-on" type="checkbox" style="width:auto;margin:0"> Llamar a la caseta cuando no cumplen una consigna</label>
+        <div class="dos">
+          <div><label>Llamar a partir del aviso #</label><input id="j-llam-desde" type="number" min="1" max="10" value="3"><div class="mini">Ej. 3 = primero 2 recordatorios por WhatsApp; al tercero ya llama.</div></div>
+          <div><label>Volver a llamar cada (min)</label><input id="j-llam-cada" type="number" min="1" max="120" value="15"><div class="mini">Mientras siga pendiente y no se venza.</div></div>
+        </div>
         <button class="btn chico" onclick="guardarAjustes()">Guardar ajustes</button>
         <button class="btn sec chico" onclick="probarWA('admin')">Probar aviso a mi WhatsApp</button>
         <button class="btn sec chico" onclick="cerrarTurnoAhora()">🔒 Cerrar ahora los días anteriores</button>
@@ -914,11 +922,19 @@ function marcarCompartido(id) {
 }
 
 // ---------- admin ----------
-function irAdmin() { document.getElementById('nip').value = ''; err('err-nip', ''); ir('p-nip'); setTimeout(function () { document.getElementById('nip').focus(); }, 100); }
+function irAdmin() {
+  var u = ls('cg_usuario_admin') || '';
+  document.getElementById('adm-usuario').value = u; document.getElementById('adm-clave').value = ''; err('err-nip', ''); ir('p-nip');
+  setTimeout(function () { document.getElementById(u ? 'adm-clave' : 'adm-usuario').focus(); }, 100);
+}
 function volverDeAdmin() { if (S.token) { ir('p-inicio'); cargarEstado(); } else ir('p-clave'); }
 function entrarAdmin() {
+  var usuario = document.getElementById('adm-usuario').value.trim(), clave = document.getElementById('adm-clave').value.trim();
+  if (!usuario) return err('err-nip', 'Escribe el usuario del administrador.');
+  if (!clave) return err('err-nip', 'Escribe la contraseña.');
+  ls('cg_usuario_admin', usuario);
   cargando(true, 'Entrando…');
-  llamar('entrar_admin', { nip: document.getElementById('nip').value }).then(function (r) { S.adminToken = r.token; return cargarAdmin(); })
+  llamar('entrar_admin', { usuario: usuario, clave: clave }).then(function (r) { S.adminToken = r.token; return cargarAdmin(); })
     .then(function () { ir('p-admin'); tab('cump'); cargarReporte(); })
     .catch(function (e) { err('err-nip', e.message); }).finally(function () { cargando(false); });
 }
@@ -936,7 +952,11 @@ function cargarAdmin() {
     document.getElementById('j-grupo').value = r.config.nombre_grupo || '';
     document.getElementById('j-hora').value = r.config.hora_reporte || 7;
     document.getElementById('j-corte').value = r.config.hora_corte || 9;
-    document.getElementById('j-nip').value = r.config.nip_admin || '';
+    document.getElementById('j-adm-usuario').value = r.config.usuario_admin || 'gecem';
+    document.getElementById('j-adm-clave').value = r.config.clave_admin || '';
+    document.getElementById('j-llam-on').checked = (r.config.llamadas_activas || 'si') === 'si';
+    document.getElementById('j-llam-desde').value = r.config.llamar_desde_aviso || 3;
+    document.getElementById('j-llam-cada').value = r.config.llamar_cada_min || 15;
     document.getElementById('j-url').textContent = r.url || URL_APP;
     pintarConsignas(); pintarFijasAdmin(); pintarProtocolosAdmin(); pintarEquipo();
     var hoy = new Date(), d7 = new Date(); d7.setDate(hoy.getDate() - 6);
@@ -1220,8 +1240,13 @@ function cerrarTurnoAhora() {
     .catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
 }
 function guardarAjustes() {
-  var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, hora_cambio_turno: document.getElementById('j-cambio').value, tolerancia_entrada_min: document.getElementById('j-tol').value, equipo_turno: document.getElementById('j-equipo').value.trim(), nip_admin: document.getElementById('j-nip').value.trim() };
-  if (!cfg.nip_admin) return err('err-aj', 'El NIP no puede quedar vacío.');
+  var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, hora_cambio_turno: document.getElementById('j-cambio').value, tolerancia_entrada_min: document.getElementById('j-tol').value, equipo_turno: document.getElementById('j-equipo').value.trim(),
+    usuario_admin: document.getElementById('j-adm-usuario').value.trim(), clave_admin: document.getElementById('j-adm-clave').value.trim(),
+    llamadas_activas: document.getElementById('j-llam-on').checked ? 'si' : 'no', llamar_desde_aviso: document.getElementById('j-llam-desde').value, llamar_cada_min: document.getElementById('j-llam-cada').value };
+  if (!cfg.usuario_admin) return err('err-aj', 'El usuario del administrador no puede quedar vacío.');
+  if (!cfg.clave_admin) return err('err-aj', 'La contraseña del administrador no puede quedar vacía.');
+  if (+cfg.llamar_desde_aviso < 1) return err('err-aj', 'El aviso a partir del cual se llama debe ser 1 o más.');
+  if (+cfg.llamar_cada_min < 1) return err('err-aj', 'Los minutos entre llamadas deben ser 1 o más.');
   cargando(true, 'Guardando…');
   llamar('admin_config', { token: S.adminToken, config: cfg }).then(cargarAdmin).then(function () { err('err-aj', ''); alert('Guardado.'); }).catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
 }
@@ -1270,7 +1295,8 @@ function descargarPDF() {
 
 document.getElementById('clave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
 document.getElementById('usuario').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('clave').focus(); });
-document.getElementById('nip').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrarAdmin(); });
+document.getElementById('adm-clave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrarAdmin(); });
+document.getElementById('adm-usuario').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('adm-clave').focus(); });
 arrancar();
 </script>
 <script>
