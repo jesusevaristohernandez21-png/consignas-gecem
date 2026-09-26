@@ -139,6 +139,7 @@
     <div id="sec-chips"><h2>¿Quién está de turno?</h2>
     <div class="chips" id="chips-guardia"></div></div>
     <div id="consignas-hoy">
+    <div id="sec-porcompartir"><h2 style="color:var(--ambar)">📲 Falta mandar al grupo</h2><div class="mini" style="margin:-4px 0 8px">Ya están hechas, pero la mesa directiva todavía no las recibe. Toca WhatsApp en cada una.</div><div id="lista-porcompartir"></div></div>
     <div id="sec-pend"><h2 style="color:var(--rojo)">Pendientes — sube la foto</h2><div id="lista-pend"></div></div>
     <div id="sec-abiertas"><h2>Ya se pueden subir</h2><div id="lista-abiertas"></div></div>
     <div id="sec-prox"><h2>Siguiente consigna</h2><div id="lista-prox"></div><div class="mini" id="prox-resto" style="margin:-6px 0 12px"></div></div>
@@ -171,7 +172,7 @@
     </div>
     </details>
     <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.2 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.3 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -668,6 +669,8 @@ function pintarInicio() {
     else if (it.estado === 'proxima') grupos.proxima.push(it);
     else grupos.hecha.push(it);
   });
+  // v3.3: las hechas que se comparten al grupo y aún no se mandaron se quedan arriba, a la vista
+  pintarLista('lista-porcompartir', 'sec-porcompartir', grupos.hecha.filter(function (it) { return it.compartir_grupo && !it.compartido; }), tarjetaHecha);
   pintarLista('lista-pend', 'sec-pend', grupos.pendiente, tarjetaPend);
   pintarLista('lista-abiertas', 'sec-abiertas', grupos.abierta, tarjetaAbierta);
   // v3.2: en Hoy solo se ve la SIGUIENTE consigna; las demás aparecen cuando ya se acerque su hora
@@ -876,18 +879,20 @@ function accion(it, ahora) {
   if (esPaq(it)) return '📦 Enviar reporte de paquetería';
   return (esTexto(it) ? '📝 Enviar reporte' : '📷 Subir foto') + (ahora ? ' ahora' : '');
 }
+// v3.3: la consigna se ve desde antes, pero solo se puede hacer a partir de su hora
+function yaEsHora(it) { return !(it.minutos < 0); }
 function tarjetaAbierta(it) {
   var d = document.createElement('div'); d.className = 'card abierta';
+  var ya = yaEsHora(it);
   d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
-    '<div class="mini" style="margin-top:6px">Falta ' + (-it.minutos) + ' min para la hora, pero ya puedes ' + (esFijas(it) ? 'palomearlas' : esTexto(it) ? 'enviarlo' : 'subirla') + '.</div><button class="btn">' + accion(it) + '</button>';
-  d.querySelector('button').onclick = function () { abrirFoto(it); };
+    (ya ? '<button class="btn">' + accion(it) + '</button>' : '<div class="mini" style="margin-top:8px;font-weight:700">⏳ Se puede hacer a partir de las ' + esc(it.hora) + ' (faltan ' + (-it.minutos) + ' min).</div>');
+  var b = d.querySelector('button'); if (b) b.onclick = function () { abrirFoto(it); };
   return d;
 }
 function tarjetaProx(it) {
   var d = document.createElement('div'); d.className = 'card prox';
   d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="mini">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
-    '<div class="mini" style="margin-top:6px">El aviso llega a las ' + esc(it.hora) + ', pero puedes hacerla desde ahora.</div><button class="btn sec chico">' + accion(it, true) + '</button>';
-  d.querySelector('button').onclick = function () { abrirFoto(it); };
+    '<div class="mini" style="margin-top:6px">⏳ Se puede hacer a partir de las ' + esc(it.hora) + '. El aviso llega a esa hora.</div>';
   return d;
 }
 function tarjetaHecha(it, fecha) {
