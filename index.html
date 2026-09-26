@@ -144,7 +144,7 @@
     <div id="sec-prox"><h2>Siguiente consigna</h2><div id="lista-prox"></div><div class="mini" id="prox-resto" style="margin:-6px 0 12px"></div></div>
     </div><!-- /consignas-hoy -->
     <!-- v3.2: bitácora y alberca se anotan desde Hoy, sin cambiar de pestaña -->
-    <details class="rapido" id="rap-nota"><summary>📝 Anotar en bitácora (hechos importantes del turno)</summary>
+    <details class="rapido" id="rap-nota" open><summary>📝 Anotar en bitácora (hechos importantes del turno)</summary>
     <div class="card">
       <div class="mini">Anota lo importante del turno: reportes de residentes, fallas, visitas raras, paquetería, lo que el siguiente turno o supervisión deba saber.</div>
       <textarea id="n-texto" rows="3" placeholder="Ej. Casa 12 reportó fuga de agua en la calle; se avisó a mantenimiento." style="margin-top:8px"></textarea>
@@ -158,7 +158,7 @@
       <div class="error" id="err-nota"></div>
     </div>
     </details>
-    <details class="rapido" id="rap-alberca"><summary>🏊 Registrar alberca</summary>
+    <details class="rapido" id="rap-alberca" open><summary>🏊 Registrar alberca</summary>
     <div class="card">
       <div class="mini">Cada vez que haya personas en la alberca, ve, pregunta de qué casa son y regístralo aquí. Así, si hay un desperfecto, sabemos quién estuvo. Solo casa y número de personas; no pidas nombres ni otros datos.</div>
       <div class="dos">
@@ -812,7 +812,6 @@ function guardarNota() {
     return llamar('bitacora', { token: S.token, tipo: 'nota', guardia: S.guardia, texto: texto, importante: imp, fotos: datas });
   }).then(function (r) {
     document.getElementById('n-texto').value = ''; document.getElementById('n-importante').checked = false; S.notaBlobs = []; pintarMinisNota();
-    var rn = document.getElementById('rap-nota'); if (rn) rn.open = false;
     alert('✔ Nota guardada en la bitácora' + (imp ? ' y avisada al supervisor.' : '.'));
     if (S.estado) { S.estado.bitacora = [r.item].concat(S.estado.bitacora || []); pintarBitacora(S.estado.bitacora); }
     return cargarEstado();
@@ -827,7 +826,6 @@ function guardarAlberca() {
   cargando(true, 'Registrando…');
   llamar('bitacora', { token: S.token, tipo: 'alberca', guardia: S.guardia, casa: casa, personas: personas, texto: document.getElementById('al-texto').value.trim() }).then(function (r) {
     document.getElementById('al-casa').value = ''; document.getElementById('al-personas').value = ''; document.getElementById('al-texto').value = '';
-    var ra = document.getElementById('rap-alberca'); if (ra) ra.open = false;
     if (S.estado) { S.estado.bitacora = [r.item].concat(S.estado.bitacora || []); pintarBitacora(S.estado.bitacora); }
     cargando(false);
     if (confirm('Registrado. ¿Mandarlo al grupo de WhatsApp ' + (S.caseta.grupo || 'Mesa Directiva') + '?')) abrirWhatsApp(textoBitacora(r.item));
