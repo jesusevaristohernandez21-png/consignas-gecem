@@ -30,6 +30,14 @@
   .card.falla{border-color:#e6b3b0;background:#fbf0ef;opacity:.9}
   .card.prox{opacity:.75}
   .fila{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  details.rapido{background:#fff;border:1px solid var(--borde);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  details.rapido summary,#sec-hechas summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none}
+  details.rapido summary::-webkit-details-marker,#sec-hechas summary::-webkit-details-marker{display:none}
+  details.rapido summary::after,#sec-hechas summary::after{content:"›";float:right;font-size:20px;transition:transform .2s}
+  details.rapido[open] summary::after,#sec-hechas[open] summary::after{transform:rotate(90deg)}
+  details.rapido[open] summary{margin-bottom:8px}
+  details.rapido .card{margin:0;box-shadow:none;border:none;padding:0}
+  #sec-hechas{margin-top:14px}#sec-hechas summary{color:var(--gris);text-transform:uppercase;letter-spacing:.5px;font-size:14px}
   /* v3.0: secciones con barra inferior */
   .pane{display:none}.pane.on{display:block}
   .barra{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:#fff;border-top:1px solid var(--borde);padding:4px 0 calc(4px + env(safe-area-inset-bottom))}
@@ -133,10 +141,37 @@
     <div id="consignas-hoy">
     <div id="sec-pend"><h2 style="color:var(--rojo)">Pendientes — sube la foto</h2><div id="lista-pend"></div></div>
     <div id="sec-abiertas"><h2>Ya se pueden subir</h2><div id="lista-abiertas"></div></div>
-    <div id="sec-prox"><h2>Más tarde hoy</h2><div id="lista-prox"></div></div>
-    <div id="sec-hechas"><h2>Hechas hoy</h2><div id="lista-hechas"></div></div>
+    <div id="sec-prox"><h2>Siguiente consigna</h2><div id="lista-prox"></div><div class="mini" id="prox-resto" style="margin:-6px 0 12px"></div></div>
     </div><!-- /consignas-hoy -->
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.1 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <!-- v3.2: bitácora y alberca se anotan desde Hoy, sin cambiar de pestaña -->
+    <details class="rapido" id="rap-nota"><summary>📝 Anotar en bitácora (hechos importantes del turno)</summary>
+    <div class="card">
+      <div class="mini">Anota lo importante del turno: reportes de residentes, fallas, visitas raras, paquetería, lo que el siguiente turno o supervisión deba saber.</div>
+      <textarea id="n-texto" rows="3" placeholder="Ej. Casa 12 reportó fuga de agua en la calle; se avisó a mantenimiento." style="margin-top:8px"></textarea>
+      <input type="file" id="n-archivo" accept="image/*" multiple style="display:none" onchange="notaFotoElegida(this)">
+      <div id="n-minis" class="minis"></div>
+      <div class="dos">
+        <button class="btn sec chico" onclick="document.getElementById('n-archivo').click()">📷 Foto (opcional)</button>
+        <button class="btn chico" onclick="guardarNota()">Guardar nota</button>
+      </div>
+      <label style="margin-top:8px"><input type="checkbox" id="n-importante" class="sw"> Es urgente: avisar ahora al supervisor por WhatsApp</label>
+      <div class="error" id="err-nota"></div>
+    </div>
+    </details>
+    <details class="rapido" id="rap-alberca"><summary>🏊 Registrar alberca</summary>
+    <div class="card">
+      <div class="mini">Cada vez que haya personas en la alberca, ve, pregunta de qué casa son y regístralo aquí. Así, si hay un desperfecto, sabemos quién estuvo. Solo casa y número de personas; no pidas nombres ni otros datos.</div>
+      <div class="dos">
+        <div><label>Casa</label><input id="al-casa" placeholder="Ej. 12"></div>
+        <div><label>Personas</label><input id="al-personas" type="number" inputmode="numeric" placeholder="Ej. 4"></div>
+      </div>
+      <label>Observación (opcional)</label><input id="al-texto" placeholder="Ej. 2 adultos y 2 niños, con invitados">
+      <button class="btn chico" onclick="guardarAlberca()">Registrar en alberca</button>
+      <div class="error" id="err-alberca"></div>
+    </div>
+    </details>
+    <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.2 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -167,31 +202,11 @@
     <!-- ===== BITÁCORA ===== -->
     <div class="pane" data-pane="bitacora">
     <h2>📝 Notas de la jornada</h2>
-    <div class="card">
-      <div class="mini">Anota lo importante del turno: reportes de residentes, fallas, visitas raras, paquetería, lo que el siguiente turno o supervisión deba saber.</div>
-      <textarea id="n-texto" rows="3" placeholder="Ej. Casa 12 reportó fuga de agua en la calle; se avisó a mantenimiento." style="margin-top:8px"></textarea>
-      <input type="file" id="n-archivo" accept="image/*" multiple style="display:none" onchange="notaFotoElegida(this)">
-      <div id="n-minis" class="minis"></div>
-      <div class="dos">
-        <button class="btn sec chico" onclick="document.getElementById('n-archivo').click()">📷 Foto (opcional)</button>
-        <button class="btn chico" onclick="guardarNota()">Guardar nota</button>
-      </div>
-      <label style="margin-top:8px"><input type="checkbox" id="n-importante" class="sw"> Es urgente: avisar ahora al supervisor por WhatsApp</label>
-      <div class="error" id="err-nota"></div>
-    </div>
+    <div class="mini" style="margin:-4px 0 8px">Para anotar algo nuevo, usa la pantalla <b>Hoy</b> (📝 Anotar en bitácora).</div>
     <div id="lista-notas"></div>
 
     <h2>🏊 Registro de alberca</h2>
-    <div class="card">
-      <div class="mini">Cada vez que haya personas en la alberca, ve, pregunta de qué casa son y regístralo aquí. Así, si hay un desperfecto, sabemos quién estuvo. Solo casa y número de personas; no pidas nombres ni otros datos.</div>
-      <div class="dos">
-        <div><label>Casa</label><input id="al-casa" placeholder="Ej. 12"></div>
-        <div><label>Personas</label><input id="al-personas" type="number" inputmode="numeric" placeholder="Ej. 4"></div>
-      </div>
-      <label>Observación (opcional)</label><input id="al-texto" placeholder="Ej. 2 adultos y 2 niños, con invitados">
-      <button class="btn chico" onclick="guardarAlberca()">Registrar en alberca</button>
-      <div class="error" id="err-alberca"></div>
-    </div>
+    <div class="mini" style="margin:-4px 0 8px">Para registrar, usa la pantalla <b>Hoy</b> (🏊 Registrar alberca).</div>
     <div id="lista-alberca"></div>
     </div><!-- /bitacora -->
 
@@ -655,8 +670,13 @@ function pintarInicio() {
   });
   pintarLista('lista-pend', 'sec-pend', grupos.pendiente, tarjetaPend);
   pintarLista('lista-abiertas', 'sec-abiertas', grupos.abierta, tarjetaAbierta);
-  pintarLista('lista-prox', 'sec-prox', grupos.proxima, tarjetaProx);
+  // v3.2: en Hoy solo se ve la SIGUIENTE consigna; las demás aparecen cuando ya se acerque su hora
+  grupos.proxima.sort(function (a, b) { return a.hora < b.hora ? -1 : 1; });
+  pintarLista('lista-prox', 'sec-prox', grupos.proxima.slice(0, 1), tarjetaProx);
+  var resto = grupos.proxima.slice(1);
+  document.getElementById('prox-resto').textContent = resto.length ? 'Después: ' + resto.map(function (it) { return it.hora + ' ' + it.titulo; }).join(' · ') : '';
   pintarLista('lista-hechas', 'sec-hechas', grupos.hecha, tarjetaHecha);
+  document.getElementById('hechas-titulo').textContent = 'Hechas hoy (' + grupos.hecha.length + ')';
   // v2.10.1: "Días anteriores" ya no se muestra al guardia; ese historial lo revisa el administrador en Cumplimiento.
   pintarBitacora(r.bitacora || []);
 }
@@ -792,6 +812,8 @@ function guardarNota() {
     return llamar('bitacora', { token: S.token, tipo: 'nota', guardia: S.guardia, texto: texto, importante: imp, fotos: datas });
   }).then(function (r) {
     document.getElementById('n-texto').value = ''; document.getElementById('n-importante').checked = false; S.notaBlobs = []; pintarMinisNota();
+    var rn = document.getElementById('rap-nota'); if (rn) rn.open = false;
+    alert('✔ Nota guardada en la bitácora' + (imp ? ' y avisada al supervisor.' : '.'));
     if (S.estado) { S.estado.bitacora = [r.item].concat(S.estado.bitacora || []); pintarBitacora(S.estado.bitacora); }
     return cargarEstado();
   }).catch(function (e) { err('err-nota', e.message); }).finally(function () { cargando(false); });
@@ -805,6 +827,7 @@ function guardarAlberca() {
   cargando(true, 'Registrando…');
   llamar('bitacora', { token: S.token, tipo: 'alberca', guardia: S.guardia, casa: casa, personas: personas, texto: document.getElementById('al-texto').value.trim() }).then(function (r) {
     document.getElementById('al-casa').value = ''; document.getElementById('al-personas').value = ''; document.getElementById('al-texto').value = '';
+    var ra = document.getElementById('rap-alberca'); if (ra) ra.open = false;
     if (S.estado) { S.estado.bitacora = [r.item].concat(S.estado.bitacora || []); pintarBitacora(S.estado.bitacora); }
     cargando(false);
     if (confirm('Registrado. ¿Mandarlo al grupo de WhatsApp ' + (S.caseta.grupo || 'Mesa Directiva') + '?')) abrirWhatsApp(textoBitacora(r.item));
