@@ -360,7 +360,7 @@
           <div><label>Máximo de avisos</label><input id="c-max" type="number" value="3"><div class="mini">Al llegar aquí te avisa a ti</div></div>
         </div>
         <label>Se puede subir desde (min antes)</label><input id="c-ant" type="number" value="60">
-        <label><input type="checkbox" id="c-grupo" class="sw"> Pedir que la manden al grupo de la mesa directiva</label>
+        <label><input type="checkbox" id="c-grupo" class="sw"> Se comparte al grupo de la mesa directiva (el guardia ve el botón de WhatsApp). Sin palomear, es solo para GECEM.</label>
         <label><input type="checkbox" id="c-activa" class="sw" checked> Activa</label>
         <button class="btn verde chico" onclick="guardarConsigna()">Guardar</button>
         <button class="btn sec chico" onclick="document.getElementById('form-cons').style.display='none'">Cancelar</button>
@@ -877,7 +877,7 @@ function tarjetaHecha(it, fecha) {
     (it.compartir_grupo && !it.compartido ? '<div class="aviso">Falta mandarla al grupo de la mesa directiva.</div>' : '') +
     (it.compartido ? '<div class="mini" style="margin-top:6px">✔ Enviada al grupo</div>' : '') +
     ((it.fotos || []).length ? '<div class="minis">' + it.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '') +
-    (it.estado === 'cumplida' || it.estado === 'tarde' ? '<div class="dos"><button class="btn wa chico" data-a="wa">📲 WhatsApp' + ((it.fotos || []).length > 1 ? ' (' + it.fotos.length + ')' : '') + '</button><button class="btn sec chico" data-a="mas">➕ Agregar foto</button></div>' : '');
+    (it.estado === 'cumplida' || it.estado === 'tarde' ? '<div class="dos">' + (it.compartir_grupo ? '<button class="btn wa chico" data-a="wa">📲 WhatsApp' + ((it.fotos || []).length > 1 ? ' (' + it.fotos.length + ')' : '') + '</button>' : '') + '<button class="btn sec chico" data-a="mas">➕ Agregar foto</button></div>' : '');
   var bw = d.querySelector('[data-a="wa"]'), bm = d.querySelector('[data-a="mas"]');
   if (bw) bw.onclick = function () { compartirEvidencia(it, fecha || (S.estado && S.estado.hoy)); };
   if (bm) bm.onclick = function () { abrirFoto(Object.assign({}, it, { fecha: fecha || (S.estado && S.estado.hoy) }), true); };
@@ -1050,7 +1050,8 @@ function enviar() {
         S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
         document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : pro ? 'Protocolos confirmados' : fij ? 'Consignas fijas confirmadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
         document.getElementById('l-estado').innerHTML = r.estado === 'cumplida' ? '<span class="etiqueta verde">A TIEMPO</span>' : '<span class="etiqueta ambar">TARDE (' + r.minutos + ' min)</span>';
-        document.getElementById('l-grupo').style.display = 'block';
+        // v3.1.1: solo las consignas marcadas por el administrador se comparten al grupo; las demás son internas de GECEM
+        document.getElementById('l-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
         document.getElementById('l-aviso-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
         document.getElementById('l-nombre-grupo').textContent = S.caseta.grupo || 'Mesa Directiva';
         document.getElementById('l-compartido').textContent = '';
