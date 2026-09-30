@@ -74,6 +74,7 @@
   .spinner{width:36px;height:36px;border:4px solid #dbe3ee;border-top-color:var(--azul2);border-radius:50%;animation:g 1s linear infinite;margin:20px auto}@keyframes g{to{transform:rotate(360deg)}}
   .cargando{position:fixed;inset:0;background:rgba(255,255,255,.75);display:none;align-items:center;justify-content:center;z-index:50;flex-direction:column;font-weight:700;color:var(--azul)}
   .cargando.on{display:flex}
+  .alarma{display:none;position:fixed;left:0;right:0;bottom:0;z-index:40;background:#b91c1c;color:#fff;padding:12px 14px;font-weight:700;box-shadow:0 -4px 14px rgba(0,0,0,.3)}.alarma.on{display:flex;align-items:center;gap:10px;justify-content:space-between}.alarma button{background:#fff;color:#b91c1c;border:0;border-radius:999px;padding:8px 12px;font-weight:700;font-size:15px}@keyframes parp{50%{opacity:.6}}.alarma.on{animation:parp 1s infinite}
   .tabs{display:flex;background:#fff;border-bottom:1px solid var(--borde);position:sticky;top:68px;z-index:4}
   .tab{flex:1;text-align:center;padding:12px 2px;font-weight:700;font-size:13px;color:var(--gris);border-bottom:3px solid transparent;white-space:nowrap}
   .tab.sel{color:var(--azul2);border-bottom-color:var(--azul2)}
@@ -126,6 +127,7 @@
 
 <!-- ===================== INICIO (GUARDIA) ===================== -->
 <div class="pantalla" id="p-inicio">
+  <div class="alarma" id="alarma"><div id="alarma-txt">🔔 Es hora de la consigna</div><button onclick="silenciarAlarma()">🔕 10 min</button></div>
   <header>
     <div><h1 id="h-caseta">Caseta</h1><small id="h-fecha">—</small></div>
     <div style="display:flex;gap:8px"><button class="icono" onclick="cargarEstado(true)" title="Actualizar">⟳</button><button class="icono" onclick="irAdmin()" title="Administrador">⚙</button></div>
@@ -172,7 +174,7 @@
     </div>
     </details>
     <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.3 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.5 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -451,6 +453,16 @@
         <button class="btn chico" onclick="guardarAjustes()">Guardar ajustes</button>
         <button class="btn sec chico" onclick="probarWA('admin')">Probar aviso a mi WhatsApp</button>
         <button class="btn sec chico" onclick="cerrarTurnoAhora()">🔒 Cerrar ahora los días anteriores</button>
+        <button class="btn sec chico" onclick="probarAlarma()">🔔 Probar la alarma en este celular</button><div class="mini">La alarma suena y vibra en el celular de caseta cada minuto mientras haya una consigna con la hora ya cumplida y sin hacer (con la app abierta). El guardia puede silenciarla 10 min.</div>
+      </div>
+      <div class="card" id="card-admins">
+        <div class="titulo">👤 Administradores</div>
+        <div class="mini">Personas que pueden entrar al panel (y ver los expedientes). Cada una entra con su propio usuario. El administrador principal (arriba) siempre puede entrar.</div>
+        <div class="lista" id="lista-admins"></div>
+        <div class="dos"><div><label>Usuario</label><input id="na-usuario" autocapitalize="none" placeholder="Ej. tony"></div><div><label>Nombre</label><input id="na-nombre" placeholder="Ej. Tony"></div></div>
+        <label>Contraseña</label><input id="na-clave" placeholder="Ej. Tony2026">
+        <button class="btn chico" onclick="guardarAdminNuevo()">＋ Agregar administrador</button>
+        <div class="error" id="err-admins"></div>
       </div>
       <div class="card">
         <div class="titulo">Link de la app</div>
@@ -458,6 +470,31 @@
         <div class="mini" style="margin-top:6px">En el celular de la caseta: abrir el link en Chrome → menú ⋮ → "Instalar app" (o "Agregar a pantalla de inicio"). Este es el link que va en los avisos de WhatsApp.</div>
       </div>
       <div class="error" id="err-aj"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Expediente del guardia (solo administradores) -->
+<div class="pantalla" id="p-exp">
+  <header><div><h1 id="x-nombre">Expediente</h1><small id="x-sub"></small></div><button class="icono" onclick="volverDeExp()">✕</button></header>
+  <main>
+    <div class="mini" style="margin:0 0 10px">🔒 Datos personales del guardia. Solo para la administración de GECEM: no se comparten ni se mandan por WhatsApp. Los archivos se guardan en una carpeta privada de Drive.</div>
+    <div class="card">
+      <div class="titulo">Datos generales</div>
+      <div id="x-campos"></div>
+      <button class="btn verde chico" onclick="guardarExpediente()">Guardar datos</button>
+      <div class="mini" id="x-act"></div>
+      <div class="error" id="err-exp"></div>
+    </div>
+    <div class="card">
+      <div class="titulo">📎 Documentos</div>
+      <div class="mini">INE, carta de antecedentes, antidoping, certificado médico, etc. Foto o PDF (máx. 8 MB).</div>
+      <div class="lista" id="x-docs"></div>
+      <label>Tipo de documento</label><select id="x-tipo"></select>
+      <label>Fecha del documento (opcional)</label><input type="date" id="x-fecha">
+      <label>Archivo</label><input type="file" id="x-archivo" accept="image/*,application/pdf">
+      <button class="btn chico" onclick="subirDoc()">⬆ Subir documento</button>
+      <div class="error" id="err-doc"></div>
     </div>
   </main>
 </div>
@@ -568,10 +605,46 @@ function esGuardia() { return false; }
 
 // ---------- estado del día ----------
 var timerEstado = null;
+// ---------- v3.5: alarma en el celular cuando ya es hora de una consigna ----------
+var AL = { ctx: null, silencioHasta: 0, ultimo: 0, timer: null };
+function alarmaCtx_() { try { if (!AL.ctx) AL.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (AL.ctx.state === 'suspended') AL.ctx.resume(); } catch (e) {} return AL.ctx; }
+document.addEventListener('touchend', alarmaCtx_, { once: true }); document.addEventListener('click', alarmaCtx_, { once: true });
+function sonarAlarma() {
+  try { if (navigator.vibrate) navigator.vibrate([600, 200, 600, 200, 600, 200, 900]); } catch (e) {}
+  var c = alarmaCtx_(); if (!c) return;
+  for (var i = 0; i < 6; i++) {
+    var o = c.createOscillator(), g = c.createGain(); o.type = 'square'; o.frequency.value = i % 2 ? 660 : 990;
+    g.gain.value = 0.35; o.connect(g); g.connect(c.destination);
+    var t0 = c.currentTime + i * 0.45; o.start(t0); o.stop(t0 + 0.3);
+  }
+}
+function consignasQueSuenan_() {
+  if (!S.estado || !S.estado.items) return [];
+  var pasados = Math.floor((Date.now() - (S.estadoEn || Date.now())) / 60000);
+  return S.estado.items.filter(function (it) {
+    if (it.turno_anterior) return false;
+    if (it.estado === 'pendiente' || it.estado === 'fallida') return true;
+    return it.estado === 'abierta' && (it.minutos + pasados) >= 0;
+  });
+}
+function revisarAlarma() {
+  var el = document.getElementById('alarma'); if (!el) return;
+  var enInicio = document.getElementById('p-inicio').classList.contains('activa');
+  var lista = enInicio ? consignasQueSuenan_() : [];
+  if (!lista.length) { el.classList.remove('on'); return; }
+  document.getElementById('alarma-txt').textContent = '🔔 Es hora de: ' + lista.map(function (it) { return it.titulo + ' (' + it.hora + ')'; }).join(', ');
+  el.classList.add('on');
+  var ahora = Date.now();
+  if (ahora < AL.silencioHasta) return;
+  if (ahora - AL.ultimo >= 60000) { AL.ultimo = ahora; sonarAlarma(); }
+}
+function silenciarAlarma() { AL.silencioHasta = Date.now() + 10 * 60000; try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} document.getElementById('alarma').classList.remove('on'); }
+function probarAlarma() { AL.silencioHasta = 0; sonarAlarma(); alert('Si no sonó ni vibró: sube el volumen de multimedia del celular y quita el modo silencio.'); }
+AL.timer = setInterval(revisarAlarma, 20000);
 function cargarEstado(manual, arranque) {
   if (manual) cargando(true, arranque ? 'Cargando…' : 'Actualizando…');
   return llamar('estado', { token: S.token }).then(function (r) {
-    S.estado = r; S.caseta = r.caseta; pintarInicio();
+    S.estado = r; S.estadoEn = Date.now(); S.caseta = r.caseta; pintarInicio(); revisarAlarma();
     ls('cg_estado', JSON.stringify(r));
     err('err-inicio', '');
   }).catch(function (e) {
@@ -658,6 +731,10 @@ function pintarInicio() {
     b.onclick = function () { S.guardia = g.nombre; ls('cg_guardia', g.nombre); pintarInicio(); }; ch.appendChild(b);
   });
   pintarProtocolosHoy(r.protocolos || []);
+  // v3.3.1: la pestaña Paquetería se puede apagar por caseta desde Admin → Equipo
+  var usaPaq = !r.caseta || r.caseta.paqueteria !== false;
+  var bpq = document.querySelector('#barra [data-t="paqueteria"]'); if (bpq) bpq.style.display = usaPaq ? '' : 'none';
+  if (!usaPaq && document.querySelector('#barra [data-t="paqueteria"].on')) tabInicio('hoy');
   pintarPaquetes(r.paquetes || []);
   var tabGuardada = ls('cg_tab') || 'hoy';
   if (!document.querySelector('#p-inicio .pane.on') || document.querySelector('#p-inicio .pane.on').dataset.pane !== tabGuardada) tabInicio(tabGuardada);
@@ -698,7 +775,7 @@ function cargarMisTurnos() {
   var t = S.estado && S.estado.turno;
   res.innerHTML = t && t.guardia
     ? '<div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + (t.retraso_min ? ' · <b style="color:var(--ambar)">' + t.retraso_min + ' min tarde</b>' : ' · a tiempo') + '</div>' + (t.falta_equipo ? '<div class="mini" style="color:var(--rojo)">No recibió: ' + esc(t.falta_equipo) + '</div>' : '') + '<button class="btn sec chico" onclick="abrirTurno()">🔄 Registrar cambio de turno</button>'
-    : '<div class="titulo">🔄 Nadie ha marcado entrada</div><div class="mini">El relevo es a las ' + esc((S.estado && S.estado.hora_cambio) || '09:00') + '.</div><button class="btn rojo" onclick="abrirTurno()">🟢 Registrar mi entrada de turno</button>';
+    : '<div class="titulo">🔄 Nadie ha marcado entrada</div><div class="mini">El relevo es a las ' + esc((S.estado && S.estado.hora_cambio) || '09:00') + '.</div><button class="btn rojo" onclick="abrirTurno()">🟢 Registrar entrada de turno</button>';
   lista.innerHTML = '<div class="mini">Cargando…</div>';
   llamar('mis_turnos', { token: S.token }).then(function (r) {
     if (!r.filas.length) { lista.innerHTML = '<div class="card mini">Todavía no hay turnos registrados en esta caseta.</div>'; return; }
@@ -914,7 +991,13 @@ function textoDe(it, fecha) {
   if (esPaq(it)) return String(it.nota || '');
   var f = String(fecha || '').split('-').reverse().join('/');
   var n = (it.fotos || []).length;
-  return '✅ *' + it.titulo + '* — ' + S.caseta.nombre + '\n' + f + ' ' + String(it.subida || '').slice(11) + ' · Guardia: ' + (it.guardia || '') + (it.nota ? '\n' + (esFijas(it) ? 'Confirmado: ' : esTexto(it) ? 'Reporte: ' : 'Nota: ') + it.nota : '') + (n ? '\n📷 ' + (n > 1 ? n + ' fotos: ' : 'Foto: ') + (it.foto_corta || it.foto_ver) : '');
+  // v3.3.1: texto corto para el grupo (sin lista de fijas ni link de la foto)
+  return '✅ *' + it.titulo + '* — ' + S.caseta.nombre + '\n' + f.slice(0, 5) + ' ' + String(it.subida || '').slice(11) + ' · ' + (it.guardia || '') + (it.nota ? '\n' + notaCorta(it.nota, esFijas(it) || esProto(it)) : '') + (esFijas(it) && S.caseta.link_fijas ? '\nVer las consignas: ' + S.caseta.link_fijas : '');
+}
+function notaCorta(nota, lista) {
+  var lineas = String(nota).split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+  if (lista) lineas = lineas.filter(function (l) { return l.indexOf('•') !== 0; }).map(function (l) { return l.replace(/:$/, '.'); });
+  return lineas.join(lista ? '\n' : ' · ').slice(0, 400);
 }
 // Compartir una evidencia ya guardada: como imagen si el celular lo permite, si no como texto+link
 var cacheFotos = {};
@@ -1179,6 +1262,7 @@ function tab(n) {
   document.querySelectorAll('.vista').forEach(function (v) { v.classList.toggle('sel', v.id === 'v-' + n); });
   if (n === 'bit' && !document.getElementById('b-notas').innerHTML) cargarBitacora();
   if (n === 'turnos' && !document.getElementById('t-tabla').innerHTML) cargarTurnos();
+  if (n === 'ajustes' && !document.getElementById('lista-admins').innerHTML) cargarAdmins();
 }
 
 // Bitácora (admin)
@@ -1381,9 +1465,12 @@ function guardarFijaObj(fija, luego) {
 // Equipo
 function pintarEquipo() {
   var el = document.getElementById('lista-guardias'); el.innerHTML = '';
-  S.admin.guardias.slice().sort(function (a, b) { return String(a.caseta_id).localeCompare(String(b.caseta_id)); }).forEach(function (g) {
+  var casetaAnt = null;
+  S.admin.guardias.slice().sort(function (a, b) { return String(nombreCaseta(a.caseta_id)).localeCompare(String(nombreCaseta(b.caseta_id))) || String(a.nombre).localeCompare(String(b.nombre)); }).forEach(function (g) {
+    if (String(g.caseta_id) !== casetaAnt) { casetaAnt = String(g.caseta_id); var h = document.createElement('div'); h.className = 'mini'; h.style.cssText = 'margin:10px 0 4px;font-weight:700;color:var(--azul)'; h.textContent = '📍 ' + nombreCaseta(g.caseta_id); el.appendChild(h); }
     var d = document.createElement('div'); d.className = 'lista-item';
-    d.innerHTML = '<div><b>' + esc(g.nombre) + '</b><div class="mini">' + esc(nombreCaseta(g.caseta_id)) + (String(g.activo) !== 'si' ? ' · <span style="color:var(--rojo)">inactivo</span>' : '') + '</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="chip" data-a="ren">Renombrar</button><button class="chip" data-a="cas">Caseta</button><button class="chip" data-a="baja">' + (String(g.activo) === 'si' ? 'Dar de baja' : 'Reactivar') + '</button></div>';
+    d.innerHTML = '<div><b>' + esc(g.nombre) + '</b><div class="mini">' + esc(nombreCaseta(g.caseta_id)) + (String(g.activo) !== 'si' ? ' · <span style="color:var(--rojo)">inactivo</span>' : '') + '</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="chip" data-a="exp">📁 Expediente</button><button class="chip" data-a="ren">Renombrar</button><button class="chip" data-a="cas">Caseta</button><button class="chip" data-a="baja">' + (String(g.activo) === 'si' ? 'Dar de baja' : 'Reactivar') + '</button></div>';
+    d.querySelector('[data-a="exp"]').onclick = function () { abrirExpediente(g); };
     d.querySelector('[data-a="cas"]').onclick = function () {
       var ops = S.admin.casetas.filter(function (c) { return String(c.activa) === 'si'; });
       var txt = ops.map(function (c, i) { return (i + 1) + ') ' + c.nombre; }).join('\n');
@@ -1415,10 +1502,11 @@ function pintarEquipo() {
       '<label>Usuario de Telegram del celular de caseta (para las llamadas)</label><input data-k="telegram" value="' + esc(c.telegram || '') + '" placeholder="@usuario o +52442...">' +
       '<div class="mini">Para que entren las llamadas: instalar Telegram en ese celular, ponerle un @usuario y mandarle <b>/start</b> a <b>@CallMeBot_txtbot</b>. Si no tiene @usuario, aquí va el teléfono con +52.</div>' +
       '<div class="mini">Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
+      '<label style="margin-top:10px"><input type="checkbox" class="sw" data-k="paqueteria"' + (String(c.paqueteria || 'si') !== 'no' ? ' checked' : '') + '> Esta caseta usa la sección de Paquetería</label>' +
       '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button>';
     var bs = d.querySelectorAll('button');
     bs[0].onclick = function () {
-      var o = { id: c.id, nombre: c.nombre, activa: String(c.activa) === 'si' }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.value.trim(); });
+      var o = { id: c.id, nombre: c.nombre, activa: String(c.activa) === 'si' }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.type === 'checkbox' ? i.checked : i.value.trim(); });
       cargando(true, 'Guardando…');
       llamar('admin_caseta', { token: S.adminToken, caseta: o }).then(cargarAdmin).catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
     };
@@ -1455,6 +1543,93 @@ function cerrarTurnoAhora() {
   cargando(true, 'Cerrando…');
   llamar('admin_corte', { token: S.adminToken }).then(function (r) { alert(r.cerradas ? 'Se cerraron ' + r.cerradas + ' consignas de días anteriores.' : 'No había nada pendiente de días anteriores.'); }).then(cargarAdmin)
     .catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
+}
+// ---------- Expediente del guardia (v3.4, solo administradores) ----------
+var CAMPOS_EXP_UI = [
+  ['nombre_completo', 'Nombre completo'], ['fecha_nacimiento', 'Fecha de nacimiento', 'date'], ['curp', 'CURP'], ['rfc', 'RFC'], ['nss', 'NSS (IMSS)'],
+  ['domicilio', 'Domicilio'], ['telefono', 'Teléfono', 'tel'], ['correo', 'Correo', 'email'], ['fecha_ingreso', 'Fecha de ingreso a GECEM', 'date'], ['gafete', 'Núm. de gafete / credencial'],
+  ['registro_autoridad', 'Registro ante la autoridad de seguridad privada (folio)'], ['registro_fecha', 'Vigencia del registro', 'date'],
+  ['talla_camisa', 'Talla de camisa'], ['talla_pantalon', 'Talla de pantalón'], ['talla_calzado', 'Talla de calzado'], ['tipo_sangre', 'Tipo de sangre'],
+  ['emergencia1_nombre', 'Emergencia 1: nombre'], ['emergencia1_parentesco', 'Emergencia 1: parentesco'], ['emergencia1_tel', 'Emergencia 1: teléfono', 'tel'],
+  ['emergencia2_nombre', 'Emergencia 2: nombre'], ['emergencia2_parentesco', 'Emergencia 2: parentesco'], ['emergencia2_tel', 'Emergencia 2: teléfono', 'tel'],
+  ['notas', 'Notas', 'textarea']
+];
+var expActual = null;
+function abrirExpediente(g) {
+  cargando(true, 'Abriendo expediente…');
+  llamar('admin_expediente', { token: S.adminToken, guardia_id: g.id }).then(function (r) { pintarExpediente(r); ir('p-exp'); })
+    .catch(function (e) { err('err-equipo', e.message); }).finally(function () { cargando(false); });
+}
+function pintarExpediente(r) {
+  expActual = r;
+  document.getElementById('x-nombre').textContent = r.guardia.nombre;
+  document.getElementById('x-sub').textContent = nombreCaseta(r.guardia.caseta_id) + (r.guardia.activo ? '' : ' · inactivo');
+  var el = document.getElementById('x-campos'); el.innerHTML = '';
+  CAMPOS_EXP_UI.forEach(function (c) {
+    var k = c[0], v = r.campos[k] || '';
+    el.insertAdjacentHTML('beforeend', '<label>' + esc(c[1]) + '</label>' + (c[2] === 'textarea' ? '<textarea rows="3" data-x="' + k + '">' + esc(v) + '</textarea>' : '<input type="' + (c[2] || 'text') + '" data-x="' + k + '" value="' + esc(v) + '">'));
+  });
+  document.getElementById('x-act').textContent = r.actualizado ? 'Última actualización: ' + r.actualizado + (r.actualizo ? ' (' + r.actualizo + ')' : '') : 'Sin datos todavía.';
+  var sel = document.getElementById('x-tipo'); sel.innerHTML = (r.tipos || []).map(function (t) { return '<option>' + esc(t) + '</option>'; }).join('');
+  var ld = document.getElementById('x-docs'); ld.innerHTML = '';
+  if (!r.docs.length) ld.innerHTML = '<div class="mini">Todavía no hay documentos.</div>';
+  r.docs.forEach(function (d) {
+    var it = document.createElement('div'); it.className = 'lista-item';
+    it.innerHTML = '<div><b>' + esc(d.tipo) + '</b><div class="mini">' + (d.fecha_doc ? 'Fecha del doc: ' + esc(d.fecha_doc) + ' · ' : '') + 'subido ' + esc(d.subido) + (d.subio ? ' por ' + esc(d.subio) : '') + '</div></div><div style="display:flex;gap:6px"><a class="chip" href="' + esc(d.ver) + '" target="_blank" rel="noopener">Ver</a><button class="chip" data-a="del">Borrar</button></div>';
+    it.querySelector('[data-a="del"]').onclick = function () { borrarDoc(d); };
+    ld.appendChild(it);
+  });
+  err('err-exp', ''); err('err-doc', '');
+}
+function guardarExpediente() {
+  if (!expActual) return;
+  var campos = {}; document.querySelectorAll('#x-campos [data-x]').forEach(function (i) { campos[i.dataset.x] = i.value.trim(); });
+  cargando(true, 'Guardando…');
+  llamar('admin_expediente_guardar', { token: S.adminToken, guardia_id: expActual.guardia.id, campos: campos }).then(function (r) { pintarExpediente(r); alert('Guardado.'); })
+    .catch(function (e) { err('err-exp', e.message); }).finally(function () { cargando(false); });
+}
+function subirDoc() {
+  if (!expActual) return;
+  var f = document.getElementById('x-archivo').files[0]; if (!f) return err('err-doc', 'Elige el archivo (foto o PDF).');
+  var tipo = document.getElementById('x-tipo').value, fecha = document.getElementById('x-fecha').value;
+  cargando(true, 'Subiendo…'); err('err-doc', '');
+  var prep = f.type === 'application/pdf' ? Promise.resolve(f) : comprimir(f, 1600, 0.85).catch(function () { return f; });
+  prep.then(function (b) { if (b.size > 8 * 1024 * 1024) throw new Error('El archivo pesa más de 8 MB.'); return blobADataURL(b); })
+    .then(function (data) { return llamar('admin_doc_subir', { token: S.adminToken, guardia_id: expActual.guardia.id, tipo: tipo, fecha_doc: fecha, data: data }); })
+    .then(function (r) { document.getElementById('x-archivo').value = ''; document.getElementById('x-fecha').value = ''; pintarExpediente(r); })
+    .catch(function (e) { err('err-doc', e.message); }).finally(function () { cargando(false); });
+}
+function borrarDoc(d) {
+  if (!confirm('¿Borrar "' + d.tipo + '"? El archivo se manda a la papelera de Drive.')) return;
+  cargando(true, 'Borrando…');
+  llamar('admin_doc_borrar', { token: S.adminToken, id: d.id }).then(pintarExpediente).catch(function (e) { err('err-doc', e.message); }).finally(function () { cargando(false); });
+}
+function volverDeExp() { expActual = null; ir('p-admin'); }
+
+// ---------- Administradores (v3.4) ----------
+function cargarAdmins() {
+  llamar('admin_admins', { token: S.adminToken }).then(function (r) {
+    var el = document.getElementById('lista-admins'); el.innerHTML = '';
+    if (!r.admins.length) el.innerHTML = '<div class="mini">Solo el administrador principal.</div>';
+    r.admins.forEach(function (a) {
+      var d = document.createElement('div'); d.className = 'lista-item';
+      d.innerHTML = '<div><b>' + esc(a.nombre) + '</b><div class="mini">usuario: ' + esc(a.usuario) + (a.activo ? '' : ' · <span style="color:var(--rojo)">sin acceso</span>') + '</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="chip" data-a="clave">Contraseña</button><button class="chip" data-a="act">' + (a.activo ? 'Quitar acceso' : 'Dar acceso') + '</button></div>';
+      d.querySelector('[data-a="clave"]').onclick = function () { var c = prompt('Nueva contraseña para ' + a.nombre + ':'); if (c === null || !c.trim()) return; guardarAdmin({ usuario: a.usuario, nombre: a.nombre, activo: a.activo, clave: c.trim() }); };
+      d.querySelector('[data-a="act"]').onclick = function () { guardarAdmin({ usuario: a.usuario, nombre: a.nombre, activo: !a.activo }); };
+      el.appendChild(d);
+    });
+  }).catch(function (e) { err('err-admins', e.message); });
+}
+function guardarAdmin(a) {
+  cargando(true, 'Guardando…'); err('err-admins', '');
+  llamar('admin_admin_guardar', { token: S.adminToken, admin: a }).then(cargarAdmins).catch(function (e) { err('err-admins', e.message); }).finally(function () { cargando(false); });
+}
+function guardarAdminNuevo() {
+  var a = { usuario: document.getElementById('na-usuario').value.trim(), nombre: document.getElementById('na-nombre').value.trim(), clave: document.getElementById('na-clave').value.trim(), activo: true };
+  if (!a.usuario || !a.clave) return err('err-admins', 'Escribe usuario y contraseña.');
+  cargando(true, 'Guardando…'); err('err-admins', '');
+  llamar('admin_admin_guardar', { token: S.adminToken, admin: a }).then(function () { ['na-usuario', 'na-nombre', 'na-clave'].forEach(function (i) { document.getElementById(i).value = ''; }); cargarAdmins(); })
+    .catch(function (e) { err('err-admins', e.message); }).finally(function () { cargando(false); });
 }
 function guardarAjustes() {
   var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, hora_cambio_turno: document.getElementById('j-cambio').value, tolerancia_entrada_min: document.getElementById('j-tol').value, equipo_turno: document.getElementById('j-equipo').value.trim(),
