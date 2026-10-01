@@ -174,7 +174,7 @@
     </div>
     </details>
     <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.5 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.6 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -219,10 +219,16 @@
       <div class="card">
         <div class="mini">Cada paquete que llegue a la caseta se registra aquí en el momento. Queda la hora de llegada y quién lo recibió. Cuando el residente lo recoja, toca <b>Entregado</b>.</div>
         <div class="dos">
-          <div><label>Casa</label><input id="pq-casa" placeholder="Ej. 12"></div>
+          <div><label>Casa</label><input id="pq-casa" placeholder="Ej. 12" inputmode="numeric"></div>
           <div><label>Qué es (opcional)</label><input id="pq-desc" placeholder="Ej. caja chica Amazon"></div>
         </div>
-        <button class="btn chico" onclick="registrarPaquete()">📦 Registrar paquete</button>
+        <input type="file" id="pq-archivo" accept="image/*" capture="environment" style="display:none" onchange="paqueteFotoElegida(this)">
+        <div id="pq-minis" class="minis"></div>
+        <div class="dos">
+          <button class="btn sec chico" id="pq-btn-foto" onclick="document.getElementById('pq-archivo').click()">📷 Foto del paquete</button>
+          <button class="btn chico" onclick="registrarPaquete()">📦 Registrar paquete</button>
+        </div>
+        <div class="mini">Primero la casa, luego la foto del paquete (que se vea la etiqueta) y al final <b>Registrar</b>. Al entregarlo, toca <b>Entregado</b>: desaparece de pendientes pero queda guardado en el historial con quién lo recibió y quién lo entregó.</div>
         <div class="error" id="err-paq"></div>
       </div>
       <h2 id="pq-titulo">Pendientes de entregar</h2>
@@ -795,20 +801,37 @@ function pintarPaquetes(lista) {
   lista.forEach(function (q) {
     var d = document.createElement('div'); d.className = 'card abierta';
     var dias = q.fecha !== S.estado.hoy ? ' · <b style="color:var(--ambar)">desde el ' + esc(String(q.fecha).split('-').reverse().slice(0, 2).join('/')) + '</b>' : '';
-    d.innerHTML = '<div class="fila"><div><div class="titulo">Casa ' + esc(q.casa) + '</div><div class="mini">' + (q.descripcion ? esc(q.descripcion) + ' · ' : '') + 'llegó ' + esc(q.hora_llegada) + dias + ' · recibió ' + esc(q.recibio) + '</div></div>' +
+    d.innerHTML = '<div class="fila"><div style="display:flex;gap:10px;align-items:center">' + (q.foto_mini ? '<a href="' + esc(q.foto_ver) + '" target="_blank" rel="noopener"><img src="' + esc(q.foto_mini) + '" alt="" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--borde);display:block"></a>' : '') + '<div><div class="titulo">Casa ' + esc(q.casa) + '</div><div class="mini">' + (q.descripcion ? esc(q.descripcion) + ' · ' : '') + 'llegó ' + esc(q.hora_llegada) + dias + ' · recibió ' + esc(q.recibio) + '</div></div></div>' +
       '<button class="btn verde chico" style="width:auto;margin:0;padding:10px 14px">✔ Entregado</button></div>';
-    d.querySelector('button').onclick = function () { entregarPaquete(q); };
+    d.querySelector('button').onclick = function () { if (confirm('¿Ya se entregó el paquete de la casa ' + q.casa + '?')) entregarPaquete(q); };
     el.appendChild(d);
   });
+}
+// v3.6: foto del paquete al registrarlo
+S.paqBlob = null;
+function paqueteFotoElegida(inp) {
+  var f = inp.files && inp.files[0]; if (!f) return;
+  cargando(true, 'Preparando foto…');
+  comprimir(f, 1280, 0.72).then(function (b) { S.paqBlob = b; pintarMiniPaquete(); }).catch(function (e) { err('err-paq', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
+}
+function pintarMiniPaquete() {
+  var g = document.getElementById('pq-minis'); g.innerHTML = '';
+  document.getElementById('pq-btn-foto').textContent = S.paqBlob ? '📷 Otra foto' : '📷 Foto del paquete';
+  if (!S.paqBlob) return;
+  var d = document.createElement('div'); d.className = 'mini-f';
+  var im = document.createElement('img'); im.src = URL.createObjectURL(S.paqBlob); d.appendChild(im);
+  var x = document.createElement('button'); x.textContent = '✕'; x.onclick = function () { S.paqBlob = null; pintarMiniPaquete(); }; d.appendChild(x);
+  g.appendChild(d);
 }
 function registrarPaquete() {
   err('err-paq', '');
   if (!S.guardia) { err('err-paq', 'Primero elige quién está de turno (en Hoy).'); return; }
   var casa = document.getElementById('pq-casa').value.trim(), desc = document.getElementById('pq-desc').value.trim();
   if (!casa) { err('err-paq', 'Escribe para qué casa es el paquete.'); return; }
+  if (!S.paqBlob) { err('err-paq', 'Toma la foto del paquete (toca 📷 Foto del paquete).'); return; }
   cargando(true, 'Registrando…');
-  llamar('paquete_nuevo', { token: S.token, guardia: S.guardia, casa: casa, descripcion: desc }).then(function (r) {
-    document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = '';
+  blobADataURL(S.paqBlob).then(function (data) { return llamar('paquete_nuevo', { token: S.token, guardia: S.guardia, casa: casa, descripcion: desc, foto: data }); }).then(function (r) {
+    document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = ''; S.paqBlob = null; pintarMiniPaquete();
     if (S.estado) { S.estado.paquetes = r.paquetes; ls('cg_estado', JSON.stringify(S.estado)); }
     pintarPaquetes(r.paquetes || []);
   }).catch(function (e) { err('err-paq', e.message); }).finally(function () { cargando(false); });
@@ -1280,8 +1303,8 @@ function cargarBitacora() {
       return '<tr><td>' + esc(b.fecha.slice(5)) + '</td><td>' + esc(b.hora) + '</td><td><b>' + esc(b.casa) + '</b></td><td>' + esc(b.personas) + '</td><td>' + esc(b.texto) + '</td><td>' + esc(b.guardia) + '</td></tr>';
     }).join('') + '</table></div>' : '<div class="card mini">Sin registros de alberca en este periodo.</div>');
     var pq = r.paquetes || [], pend = pq.filter(function (q) { return q.estado === 'pendiente'; }).length;
-    document.getElementById('b-paquetes').innerHTML = '<h2>📦 Paquetería (' + pq.length + (pend ? ' · ' + pend + ' sin entregar' : '') + ')</h2>' + (pq.length ? '<div style="overflow-x:auto"><table><tr><th>Llegó</th><th>Caseta</th><th>Casa</th><th>Qué es</th><th>Recibió</th><th>Entregado</th><th>Entregó</th></tr>' + pq.map(function (q) {
-      return '<tr' + (q.estado === 'pendiente' ? ' style="background:var(--ambar-bg)"' : '') + '><td>' + esc(q.fecha.slice(5)) + ' ' + esc(q.hora_llegada) + '</td><td>' + esc(nombreCaseta(q.caseta_id)) + '</td><td><b>' + esc(q.casa) + '</b></td><td>' + esc(q.descripcion) + '</td><td>' + esc(q.recibio) + '</td><td>' + (q.estado === 'pendiente' ? '<b style="color:var(--ambar)">pendiente</b>' : esc(String(q.entregado).slice(5))) + '</td><td>' + esc(q.entrego) + '</td></tr>';
+    document.getElementById('b-paquetes').innerHTML = '<h2>📦 Paquetería (' + pq.length + (pend ? ' · ' + pend + ' sin entregar' : '') + ')</h2>' + (pq.length ? '<div style="overflow-x:auto"><table><tr><th>Llegó</th><th>Caseta</th><th>Casa</th><th>Qué es</th><th>Foto</th><th>Recibió</th><th>Entregado</th><th>Entregó</th></tr>' + pq.map(function (q) {
+      return '<tr' + (q.estado === 'pendiente' ? ' style="background:var(--ambar-bg)"' : '') + '><td>' + esc(q.fecha.slice(5)) + ' ' + esc(q.hora_llegada) + '</td><td>' + esc(nombreCaseta(q.caseta_id)) + '</td><td><b>' + esc(q.casa) + '</b></td><td>' + esc(q.descripcion) + '</td><td>' + (q.foto_ver ? '<a href="' + esc(q.foto_ver) + '" target="_blank" rel="noopener">📷 ver</a>' : '') + '</td><td>' + esc(q.recibio) + '</td><td>' + (q.estado === 'pendiente' ? '<b style="color:var(--ambar)">pendiente</b>' : esc(String(q.entregado).slice(5))) + '</td><td>' + esc(q.entrego) + '</td></tr>';
     }).join('') + '</table></div>' : '<div class="card mini">Sin paquetes en este periodo.</div>');
   }).catch(function (e) { err('err-bit', e.message); }).finally(function () { cargando(false); });
 }
