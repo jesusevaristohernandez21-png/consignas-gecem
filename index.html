@@ -186,7 +186,7 @@
     </div>
     </details>
     <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.8 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.8.1 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -642,6 +642,12 @@ function revisarAlarma() {
 function silenciarAlarma() { AL.silencioHasta = Date.now() + 10 * 60000; try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} document.getElementById('alarma').classList.remove('on'); }
 function probarAlarma() { AL.silencioHasta = 0; sonarAlarma(); alert('Si no sonó ni vibró: sube el volumen de multimedia del celular y quita el modo silencio.'); }
 AL.timer = setInterval(revisarAlarma, 20000);
+// v3.8.1: al volver a la app después de 5 min fuera, regresa a Hoy y actualiza
+var ultimaVista = Date.now();
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) { ultimaVista = Date.now(); return; }
+  if (Date.now() - ultimaVista > 5 * 60000 && S.token && document.getElementById('p-inicio').classList.contains('activa')) { tabInicio('hoy'); cargarEstado(true); }
+});
 function cargarEstado(manual, arranque) {
   if (manual) cargando(true, arranque ? 'Cargando…' : 'Actualizando…');
   return llamar('estado', { token: S.token }).then(function (r) {
@@ -730,8 +736,8 @@ function pintarInicio() {
   var bpq = document.querySelector('#barra [data-t="paqueteria"]'); if (bpq) bpq.style.display = usaPaq ? '' : 'none';
   if (!usaPaq && document.querySelector('#barra [data-t="paqueteria"].on')) tabInicio('hoy');
   pintarPaquetes(r.paquetes || []);
-  var tabGuardada = ls('cg_tab') || 'hoy';
-  if (!document.querySelector('#p-inicio .pane.on') || document.querySelector('#p-inicio .pane.on').dataset.pane !== tabGuardada) tabInicio(tabGuardada);
+  // v3.8.1: la app siempre abre en Hoy (antes se quedaba en la última pestaña y parecía que "no había consignas")
+  if (!document.querySelector('#p-inicio .pane.on')) tabInicio('hoy');
   var grupos = { pendiente: [], abierta: [], proxima: [], hecha: [] };
   r.items.forEach(function (it) {
     if (it.turno_anterior) return;   // v3.1: lo del turno anterior no le corresponde al guardia
