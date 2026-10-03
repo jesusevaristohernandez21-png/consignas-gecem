@@ -137,9 +137,12 @@
 
     <!-- ===== HOY ===== -->
     <div class="pane on" data-pane="hoy">
+    <!-- v3.8: checador (entrada/salida con ubicación) en lugar del cambio de turno -->
     <div class="card" id="card-turno"></div>
-    <div id="sec-chips"><h2>¿Quién está de turno?</h2>
-    <div class="chips" id="chips-guardia"></div></div>
+    <div id="sec-chips"><h2>¿Quién eres?</h2>
+    <div class="chips" id="chips-guardia"></div>
+    <div id="checador-botones"></div>
+    <div class="error" id="err-checar"></div></div>
     <div id="consignas-hoy">
     <div id="sec-porcompartir"><h2 style="color:var(--ambar)">📲 Falta mandar al grupo</h2><div class="mini" style="margin:-4px 0 8px">Ya están hechas, pero la mesa directiva todavía no las recibe. Toca WhatsApp en cada una.</div><div id="lista-porcompartir"></div></div>
     <div id="sec-pend"><h2 style="color:var(--rojo)">Pendientes — sube la foto</h2><div id="lista-pend"></div></div>
@@ -147,6 +150,15 @@
     <div id="sec-prox"><h2>Siguiente consigna</h2><div id="lista-prox"></div><div class="mini" id="prox-resto" style="margin:-6px 0 12px"></div></div>
     </div><!-- /consignas-hoy -->
     <!-- v3.2: bitácora y alberca se anotan desde Hoy, sin cambiar de pestaña -->
+    <!-- v3.8: material faltante -->
+    <details class="rapido" id="rap-material" open><summary>🧰 Material faltante</summary>
+    <div class="card">
+      <div class="mini">¿Qué hace falta en la caseta? (garrafón, papel, pilas, lámpara, radio, papelería…). Le llega a GECEM al instante.</div>
+      <textarea id="m-texto" rows="2" placeholder="Ej. Falta garrafón de agua y pilas AA para la lámpara" style="margin-top:8px"></textarea>
+      <button class="btn chico" onclick="reportarMaterial()">🧰 Reportar a GECEM</button>
+      <div class="error" id="err-material"></div>
+    </div>
+    </details>
     <details class="rapido" id="rap-nota" open><summary>📝 Anotar en bitácora (hechos importantes del turno)</summary>
     <div class="card">
       <div class="mini">Anota lo importante del turno: reportes de residentes, fallas, visitas raras, paquetería, lo que el siguiente turno o supervisión deba saber.</div>
@@ -174,7 +186,7 @@
     </div>
     </details>
     <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.7 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.8 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -189,9 +201,9 @@
 
     <!-- ===== TURNO ===== -->
     <div class="pane" data-pane="turno">
-      <h2>🔄 Turno en esta caseta</h2>
+      <h2>⏱ Checadas en esta caseta</h2>
       <div id="turno-resumen" class="card"><div class="mini">Cargando…</div></div>
-      <h2>Últimos turnos en esta caseta</h2>
+      <h2>Últimas entradas y salidas</h2>
       <div id="mis-turnos"></div>
     </div>
 
@@ -242,25 +254,8 @@
     <button data-t="paqueteria" onclick="tabInicio('paqueteria')"><span>📦</span>Paquetería</button>
     <button data-t="bitacora" onclick="tabInicio('bitacora')"><span>📝</span>Bitácora</button>
     <button data-t="protocolos" onclick="tabInicio('protocolos')"><span>📖</span>Protocolos</button>
-    <button data-t="turno" onclick="tabInicio('turno')"><span>🔄</span>Turno</button>
+    <button data-t="turno" onclick="tabInicio('turno')"><span>⏱</span>Checadas</button>
   </nav>
-</div>
-
-<!-- ===================== CAMBIO DE TURNO ===================== -->
-<div class="pantalla" id="p-turno">
-  <header><div><h1>Entrada de turno</h1><small id="t-sub"></small></div><button class="icono" onclick="ir('p-inicio')">✕</button></header>
-  <main>
-    <div class="card" id="t-saliente"></div>
-    <h2>¿Quién entra de turno?</h2>
-    <div class="chips" id="t-chips"></div>
-    <h2>¿Qué estás recibiendo?</h2>
-    <div class="mini" style="margin-bottom:6px">Palomea lo que sí recibiste. Lo que no palomees se reporta como faltante.</div>
-    <div id="t-equipo"></div>
-    <label>Novedades que te entregan (opcional)</label>
-    <textarea id="t-nota" rows="3" placeholder="Ej. La pluma está fallando, quedó paquetería de la casa 65, la cámara 3 no graba"></textarea>
-    <button class="btn verde" id="t-enviar" onclick="registrarTurno()">✔ Registrar mi entrada</button>
-    <div class="error" id="err-turno"></div>
-  </main>
 </div>
 
 <!-- ===================== TOMAR FOTO ===================== -->
@@ -665,63 +660,56 @@ function cargarEstado(manual, arranque) {
 // ---------- cambio de turno ----------
 function pintarTurno() {
   var r = S.estado, t = r.turno, el = document.getElementById('card-turno');
-  var hora = r.hora_cambio || '09:00';
   if (t && t.guardia) {
     var tarde = +t.retraso_min || 0;
-    el.innerHTML = '<div class="fila"><div><div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div>' +
-      '<div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + ' del ' + esc(String(t.fecha).split('-').reverse().join('/')) +
-      (tarde ? ' · <b style="color:var(--ambar)">' + tarde + ' min tarde</b>' : ' · a tiempo') + '</div>' +
-      (t.falta_equipo ? '<div class="mini" style="color:var(--rojo)">No recibió: ' + esc(t.falta_equipo) + '</div>' : '') +
-      (t.nota ? '<div class="mini">Novedades: ' + esc(t.nota) + '</div>' : '') +
-      '</div></div><button class="btn sec chico" onclick="abrirTurno()">🔄 Registrar cambio de turno</button>';
+    el.innerHTML = '<div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + ' del ' + esc(String(t.fecha).split('-').reverse().slice(0, 2).join('/')) + (tarde ? ' · <b style="color:var(--ambar)">' + tarde + ' min tarde</b>' : '') + '</div>';
   } else {
-    el.innerHTML = '<div class="titulo">🔄 Cambio de turno</div><div class="mini">Nadie ha marcado entrada. El relevo es a las ' + esc(hora) + '.</div>' +
-      '<button class="btn rojo" onclick="abrirTurno()">🟢 Registrar entrada de turno</button>';
+    el.innerHTML = '<div class="titulo">⚪ Nadie en turno</div><div class="mini">Elige tu nombre y marca tu entrada. El relevo es a las ' + esc(r.hora_cambio || '09:00') + '.</div>';
   }
+  pintarBotonesChecador();
 }
-function abrirTurno() {
-  var r = S.estado, t = r.turno;
-  document.getElementById('t-sub').textContent = S.caseta.nombre + ' · relevo de las ' + (r.hora_cambio || '09:00');
-  var sal = document.getElementById('t-saliente');
-  sal.innerHTML = t && t.guardia
-    ? '<div class="titulo">Entregas con: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + '. Al registrar tu entrada queda su hora de salida.</div>'
-    : '<div class="mini">No hay un turno abierto. Esta será la primera entrada registrada.</div>';
-  S.turnoGuardia = (S.guardia && (!t || t.guardia !== S.guardia)) ? S.guardia : null;
-  pintarChipsTurno();
-  var eq = document.getElementById('t-equipo'); eq.innerHTML = '';
-  (r.equipo_turno || []).forEach(function (x, i) {
-    var l = document.createElement('label'); l.className = 'card fija';
-    l.innerHTML = '<input type="checkbox" checked data-e="' + i + '"><span>' + esc(x) + '</span>';
-    l.querySelector('input').value = x;
-    eq.appendChild(l);
-  });
-  document.getElementById('t-nota').value = '';
-  err('err-turno', '');
-  ir('p-turno');
+// v3.8: checador — entrada/salida con ubicación, aviso al instante a GECEM
+function pintarBotonesChecador() {
+  var el = document.getElementById('checador-botones'); if (!el) return; el.innerHTML = '';
+  var t = S.estado && S.estado.turno;
+  if (!S.guardia) { el.innerHTML = '<div class="mini">Toca tu nombre para poder checar.</div>'; return; }
+  var enTurno = t && t.guardia === S.guardia;
+  var b = document.createElement('button'); b.className = 'btn ' + (enTurno ? 'rojo' : 'verde');
+  b.textContent = enTurno ? '🔴 Marcar mi salida' : '🟢 Marcar mi entrada';
+  b.onclick = function () { checar(enTurno ? 'salida' : 'entrada'); };
+  el.appendChild(b);
 }
-function pintarChipsTurno() {
-  var ch = document.getElementById('t-chips'); ch.innerHTML = '';
-  ((S.caseta && S.caseta.guardias) || []).forEach(function (g) {
-    var b = document.createElement('button'); b.className = 'chip' + (S.turnoGuardia === g.nombre ? ' sel' : ''); b.textContent = g.nombre;
-    b.onclick = function () { S.turnoGuardia = g.nombre; pintarChipsTurno(); err('err-turno', ''); }; ch.appendChild(b);
+function ubicacionActual() {
+  return new Promise(function (res) {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(function (p) { res({ lat: p.coords.latitude, lng: p.coords.longitude, precision: p.coords.accuracy }); }, function () { res(null); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   });
 }
-function registrarTurno() {
-  if (!S.turnoGuardia) return err('err-turno', 'Elige quién entra de turno.');
-  var eq = Array.prototype.slice.call(document.querySelectorAll('#t-equipo input:checked')).map(function (x) { return x.value; });
-  var b = document.getElementById('t-enviar'); b.disabled = true;
-  cargando(true, 'Registrando entrada…');
-  llamar('turno_entrar', { token: S.token, guardia: S.turnoGuardia, equipo: eq, nota: document.getElementById('t-nota').value.trim() })
-    .then(function (r) {
-      S.guardia = S.turnoGuardia; ls('cg_guardia', S.guardia);
-      var m = 'Entrada registrada: ' + r.turno.guardia + ' a las ' + String(r.turno.entrada).slice(11) +
-        (r.turno.retraso_min ? ' (' + r.turno.retraso_min + ' min tarde)' : ' (a tiempo)');
-      if (r.cubrio && r.cubrio.minutos) m += '.\n' + r.cubrio.guardia + ' se quedó cubriendo ' + r.cubrio.minutos + ' min.';
-      if (r.turno.falta_equipo) m += '\nFaltó recibir: ' + r.turno.falta_equipo;
-      alert(m);
-      ir('p-inicio'); return cargarEstado(true);
-    })
-    .catch(function (e) { err('err-turno', e.message); }).finally(function () { cargando(false); b.disabled = false; });
+function checar(tipo) {
+  err('err-checar', '');
+  if (!S.guardia) return err('err-checar', 'Toca tu nombre primero.');
+  if (!confirm((tipo === 'salida' ? '¿Marcar SALIDA de ' : '¿Marcar ENTRADA de ') + S.guardia + '?')) return;
+  cargando(true, 'Obteniendo ubicación…');
+  ubicacionActual().then(function (u) {
+    if (!u && !confirm('No se pudo obtener la ubicación (GPS apagado o sin permiso). ¿Registrar de todos modos?')) throw new Error('Activa la ubicación del celular y vuelve a intentar.');
+    cargando(true, 'Registrando…');
+    return llamar('checar', { token: S.token, guardia: S.guardia, tipo: tipo, lat: u ? u.lat : '', lng: u ? u.lng : '', precision: u ? u.precision : '' });
+  }).then(function (r) {
+    alert((r.tipo === 'salida' ? '🔴 Salida registrada: ' : '🟢 Entrada registrada: ') + S.guardia + ' a las ' + r.hora + (r.retraso_min ? ' (' + r.retraso_min + ' min tarde)' : '') + '. Ya se avisó a GECEM.');
+    return cargarEstado(true);
+  }).catch(function (e) { err('err-checar', e.message); }).finally(function () { cargando(false); });
+}
+// v3.8: material faltante → bitácora + aviso inmediato a GECEM
+function reportarMaterial() {
+  err('err-material', '');
+  if (!S.guardia) return err('err-material', 'Primero toca tu nombre (arriba).');
+  var texto = document.getElementById('m-texto').value.trim(); if (!texto) return err('err-material', 'Escribe qué hace falta.');
+  cargando(true, 'Enviando…');
+  llamar('bitacora', { token: S.token, tipo: 'material', guardia: S.guardia, texto: texto }).then(function (r) {
+    document.getElementById('m-texto').value = '';
+    alert('✔ Reportado a GECEM: ' + texto);
+    if (S.estado) { S.estado.bitacora = [r.item].concat(S.estado.bitacora || []); pintarBitacora(S.estado.bitacora); }
+  }).catch(function (e) { err('err-material', e.message); }).finally(function () { cargando(false); });
 }
 
 function pintarInicio() {
@@ -780,13 +768,13 @@ function cargarMisTurnos() {
   var res = document.getElementById('turno-resumen'), lista = document.getElementById('mis-turnos');
   var t = S.estado && S.estado.turno;
   res.innerHTML = t && t.guardia
-    ? '<div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + (t.retraso_min ? ' · <b style="color:var(--ambar)">' + t.retraso_min + ' min tarde</b>' : ' · a tiempo') + '</div>' + (t.falta_equipo ? '<div class="mini" style="color:var(--rojo)">No recibió: ' + esc(t.falta_equipo) + '</div>' : '') + '<button class="btn sec chico" onclick="abrirTurno()">🔄 Registrar cambio de turno</button>'
-    : '<div class="titulo">🔄 Nadie ha marcado entrada</div><div class="mini">El relevo es a las ' + esc((S.estado && S.estado.hora_cambio) || '09:00') + '.</div><button class="btn rojo" onclick="abrirTurno()">🟢 Registrar entrada de turno</button>';
+    ? '<div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + (t.retraso_min ? ' · <b style="color:var(--ambar)">' + t.retraso_min + ' min tarde</b>' : ' · a tiempo') + '</div><div class="mini">Para checar entrada o salida usa la pantalla <b>Hoy</b>.</div>'
+    : '<div class="titulo">⚪ Nadie en turno</div><div class="mini">Para marcar entrada usa la pantalla <b>Hoy</b>. El relevo es a las ' + esc((S.estado && S.estado.hora_cambio) || '09:00') + '.</div>';
   lista.innerHTML = '<div class="mini">Cargando…</div>';
   llamar('mis_turnos', { token: S.token }).then(function (r) {
     if (!r.filas.length) { lista.innerHTML = '<div class="card mini">Todavía no hay turnos registrados en esta caseta.</div>'; return; }
-    lista.innerHTML = '<div style="overflow-x:auto"><table><tr><th>Fecha</th><th>Guardia</th><th>Entrada</th><th>Salida</th><th>Tarde</th><th>Cubrió</th></tr>' + r.filas.map(function (f) {
-      return '<tr><td>' + esc(f.fecha.slice(5)) + '</td><td>' + esc(f.guardia) + '</td><td>' + esc(f.entrada) + '</td><td>' + esc(f.salida || '—') + '</td><td>' + (f.retraso_min ? '<span style="color:var(--ambar)">' + f.retraso_min + '</span>' : '0') + '</td><td>' + (f.cubrio_min || 0) + '</td></tr>';
+    lista.innerHTML = '<div style="overflow-x:auto"><table><tr><th>Fecha</th><th>Guardia</th><th>Entrada</th><th>Salida</th><th>Tarde</th></tr>' + r.filas.map(function (f) {
+      return '<tr><td>' + esc(f.fecha.slice(5)) + '</td><td>' + esc(f.guardia) + '</td><td>' + esc(f.entrada) + '</td><td>' + esc(f.salida || '—') + '</td><td>' + (f.retraso_min ? '<span style="color:var(--ambar)">' + f.retraso_min + '</span>' : '0') + '</td></tr>';
     }).join('') + '</table></div>';
   }).catch(function (e) { lista.innerHTML = '<div class="card mini">' + esc(e.message) + '</div>'; });
 }
@@ -901,7 +889,7 @@ function pintarBitacora(lista) {
       d.querySelector('button').onclick = function () { abrirWhatsApp(textoBitacora(b)); };
       la.appendChild(d);
     } else {
-      d.innerHTML = '<div class="fila"><div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE, avisado</b>' : '') + '</div><button class="btn wa chico" style="width:auto;margin:0;padding:8px 12px">📲</button></div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
+      d.innerHTML = '<div class="fila"><div class="mini">' + esc(b.hora) + ' · ' + esc(b.guardia) + (b.tipo === 'material' ? ' · <b>🧰 Material faltante, avisado</b>' : '') + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE, avisado</b>' : '') + '</div><button class="btn wa chico" style="width:auto;margin:0;padding:8px 12px">📲</button></div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
         ((b.fotos || []).length ? '<div class="minis">' + b.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '');
       d.querySelector('button').onclick = function () { abrirWhatsApp(textoBitacora(b)); };
       ln.appendChild(d);
@@ -1319,9 +1307,9 @@ function cargarBitacora() {
   if (!desde || !hasta) return;
   cargando(true, 'Cargando…'); err('err-bit', '');
   llamar('admin_bitacora', { token: S.adminToken, desde: desde, hasta: hasta, caseta_id: document.getElementById('b-caseta').value }).then(function (r) {
-    var notas = r.filas.filter(function (b) { return b.tipo === 'nota'; }).reverse(), alb = r.filas.filter(function (b) { return b.tipo === 'alberca'; }).reverse();
+    var notas = r.filas.filter(function (b) { return b.tipo === 'nota' || b.tipo === 'material'; }).reverse(), alb = r.filas.filter(function (b) { return b.tipo === 'alberca'; }).reverse();
     document.getElementById('b-notas').innerHTML = '<h2>📝 Notas de la jornada (' + notas.length + ')</h2>' + (notas.length ? notas.map(function (b) {
-      return '<div class="card' + (b.importante ? ' tarde' : '') + '"><div class="mini">' + esc(b.fecha) + ' ' + esc(b.hora) + ' · ' + esc(nombreCaseta(b.caseta_id)) + ' · ' + esc(b.guardia) + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE</b>' : '') + '</div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
+      return '<div class="card' + (b.importante ? ' tarde' : '') + '"><div class="mini">' + esc(b.fecha) + ' ' + esc(b.hora) + ' · ' + esc(nombreCaseta(b.caseta_id)) + ' · ' + esc(b.guardia) + (b.tipo === 'material' ? ' · <b>🧰 MATERIAL FALTANTE</b>' : '') + (b.importante ? ' · <b style="color:var(--ambar)">URGENTE</b>' : '') + '</div><div style="margin-top:4px;white-space:pre-wrap">' + esc(b.texto) + '</div>' +
         ((b.fotos || []).length ? '<div class="minis">' + b.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '') + '</div>';
     }).join('') : '<div class="card mini">Sin notas en este periodo.</div>');
     document.getElementById('b-alberca').innerHTML = '<h2>🏊 Registro de alberca (' + alb.length + ')</h2>' + (alb.length ? '<div style="overflow-x:auto"><table><tr><th>Fecha</th><th>Hora</th><th>Casa</th><th>Personas</th><th>Observación</th><th>Guardia</th></tr>' + alb.map(function (b) {
