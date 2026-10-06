@@ -1,4 +1,4 @@
-const CACHE = 'consignas-gecem-v3-10-9';
+const CACHE = 'consignas-gecem-v3-10-1-9';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -180,7 +180,7 @@
     <details class="rapido" id="rap-material" open><summary>🧰 Material faltante</summary>
     <div class="card">
       <div class="mini">¿Qué hace falta en la caseta? (garrafón, papel, pilas, lámpara, radio, papelería…). Le llega a GECEM al instante.</div>
-      <textarea id="m-texto" rows="2" placeholder="Ej. Falta garrafón de agua y pilas AA para la lámpara" style="margin-top:8px"></textarea>
+      <textarea id="m-texto" rows="2" style="margin-top:8px"></textarea>
       <button class="btn chico" onclick="reportarMaterial()">🧰 Reportar a GECEM</button>
       <div class="error" id="err-material"></div>
     </div>
@@ -188,7 +188,7 @@
     <details class="rapido" id="rap-nota" open><summary>📝 Anotar en bitácora (hechos importantes del turno)</summary>
     <div class="card">
       <div class="mini">Anota lo importante del turno: reportes de residentes, fallas, visitas raras, paquetería, lo que el siguiente turno o supervisión deba saber.</div>
-      <textarea id="n-texto" rows="3" placeholder="Ej. Casa 12 reportó fuga de agua en la calle; se avisó a mantenimiento." style="margin-top:8px"></textarea>
+      <textarea id="n-texto" rows="3" style="margin-top:8px"></textarea>
       <input type="file" id="n-archivo" accept="image/*" multiple style="display:none" onchange="notaFotoElegida(this)">
       <div id="n-minis" class="minis"></div>
       <div class="dos">
@@ -203,16 +203,16 @@
     <div class="card">
       <div class="mini">Cada vez que haya personas en la alberca, ve, pregunta de qué casa son y regístralo aquí. Así, si hay un desperfecto, sabemos quién estuvo. Solo casa y número de personas; no pidas nombres ni otros datos.</div>
       <div class="dos">
-        <div><label>Casa</label><input id="al-casa" placeholder="Ej. 12"></div>
-        <div><label>Personas</label><input id="al-personas" type="number" inputmode="numeric" placeholder="Ej. 4"></div>
+        <div><label>Casa</label><input id="al-casa"></div>
+        <div><label>Personas</label><input id="al-personas" type="number" inputmode="numeric"></div>
       </div>
-      <label>Observación (opcional)</label><input id="al-texto" placeholder="Ej. 2 adultos y 2 niños, con invitados">
+      <label>Observación (opcional)</label><input id="al-texto">
       <button class="btn chico" onclick="guardarAlberca()">Registrar en alberca</button>
       <div class="error" id="err-alberca"></div>
     </div>
     </details>
     <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.10 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.10.1 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -257,8 +257,8 @@
       <div class="card">
         <div class="mini">Cada paquete que llegue a la caseta se registra aquí en el momento. Queda la hora de llegada y quién lo recibió. Cuando el residente lo recoja, toca <b>Entregado</b>.</div>
         <div class="dos">
-          <div><label>Casa</label><input id="pq-casa" placeholder="Ej. 12" inputmode="numeric"></div>
-          <div><label>Qué es (opcional)</label><input id="pq-desc" placeholder="Ej. caja chica Amazon"></div>
+          <div><label>Casa</label><input id="pq-casa" inputmode="numeric"></div>
+          <div><label>Qué es (opcional)</label><input id="pq-desc"></div>
         </div>
         <input type="file" id="pq-archivo" accept="image/*" capture="environment" style="display:none" onchange="paqueteFotoElegida(this)">
         <div id="pq-minis" class="minis"></div>
@@ -309,7 +309,7 @@
     <div id="f-miniaturas" class="minis"></div>
     <div id="f-detalle" style="display:none">
       <label id="f-nota-label">Nota (opcional)</label>
-      <textarea id="nota" rows="3" placeholder="Ej. 3 autos, uno sin placas"></textarea>
+      <textarea id="nota" rows="3"></textarea>
       <button class="btn verde" id="btn-enviar" onclick="enviar()">✔ Enviar evidencia</button>
     </div>
     <div class="error" id="err-foto"></div>
@@ -379,7 +379,7 @@
         <div class="mini">Instrucciones permanentes del fraccionamiento. El guardia las lee y las palomea en la consigna de tipo "Palomear consignas fijas".</div>
         <div class="lista" id="lista-fijas"></div>
         <label>Agregar consigna fija</label>
-        <textarea id="fj-texto" rows="2" placeholder="Ej. Casa 65: recibir siempre la paquetería en caseta"></textarea>
+        <textarea id="fj-texto" rows="2"></textarea>
         <button class="btn verde chico" onclick="guardarFija()">＋ Agregar</button>
         <div class="error" id="err-fijas"></div>
       </div>
@@ -387,7 +387,7 @@
         <div class="titulo">📖 Protocolos</div>
         <div class="mini">Qué hacer en cada situación. Los guardias los leen y los palomean con la consigna de tipo "Leer protocolos" (por defecto, los lunes a las 10).</div>
         <div class="lista" id="lista-protos"></div>
-        <label>Título de la situación</label><input id="pr-titulo" placeholder="Ej. Personal de servicios: agua, luz, gas">
+        <label>Título de la situación</label><input id="pr-titulo">
         <label>Pasos a seguir</label><textarea id="pr-texto" rows="6" placeholder="1. Se les deja pasar.&#10;2. Pide identificación y anota el nombre.&#10;3. Avisa al residente por teléfono."></textarea>
         <button class="btn verde chico" onclick="guardarProtocolo()">＋ Agregar protocolo</button>
         <button class="btn sec chico" id="pr-cancelar" onclick="editarProtocolo(null)" style="display:none">Cancelar edición</button>
@@ -396,8 +396,8 @@
       <div id="form-cons" class="card" style="display:none">
         <div class="titulo" id="fc-titulo">Nueva consigna</div>
         <label>Caseta</label><select id="c-caseta"></select>
-        <label>Título</label><input id="c-titulo" placeholder="Ej. Autos en estacionamiento">
-        <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3" placeholder="Ej. Foto general del estacionamiento de visitas mostrando los autos"></textarea>
+        <label>Título</label><input id="c-titulo">
+        <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3"></textarea>
         <label>Tipo de evidencia</label>
         <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option></select>
         <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
@@ -446,9 +446,9 @@
       <h2>Casetas</h2>
       <div id="lista-casetas"></div>
       <div class="card"><div class="titulo">＋ Nueva caseta</div>
-        <label>Nombre</label><input id="nc-nombre" placeholder="Ej. Dublín">
-        <label>Usuario</label><input id="nc-usuario" autocapitalize="none" placeholder="Ej. dublin (sin espacios ni acentos)">
-        <label>Contraseña</label><input id="nc-clave" placeholder="Ej. GECEM2026">
+        <label>Nombre</label><input id="nc-nombre">
+        <label>Usuario</label><input id="nc-usuario" autocapitalize="none">
+        <label>Contraseña</label><input id="nc-clave">
         <button class="btn chico" onclick="nuevaCaseta()">Crear caseta</button>
         <div class="mini" style="margin-top:6px">Después de crearla, agrega a sus guardias aquí arriba y sus consignas en la pestaña Consignas (eligiendo la caseta).</div></div>
       <div class="error" id="err-equipo"></div>
@@ -494,8 +494,8 @@
         <div class="titulo">👤 Administradores</div>
         <div class="mini">Personas que pueden entrar al panel (y ver los expedientes). Cada una entra con su propio usuario. El administrador principal (arriba) siempre puede entrar.</div>
         <div class="lista" id="lista-admins"></div>
-        <div class="dos"><div><label>Usuario</label><input id="na-usuario" autocapitalize="none" placeholder="Ej. tony"></div><div><label>Nombre</label><input id="na-nombre" placeholder="Ej. Tony"></div></div>
-        <label>Contraseña</label><input id="na-clave" placeholder="Ej. Tony2026">
+        <div class="dos"><div><label>Usuario</label><input id="na-usuario" autocapitalize="none"></div><div><label>Nombre</label><input id="na-nombre"></div></div>
+        <label>Contraseña</label><input id="na-clave">
         <button class="btn chico" onclick="guardarAdminNuevo()">＋ Agregar administrador</button>
         <div class="error" id="err-admins"></div>
       </div>
@@ -1137,11 +1137,11 @@ function abrirFoto(it, agregar) {
   document.getElementById('f-relevo').style.display = rv ? 'block' : 'none';
   if (rv) { S.relevo = { entra: null, sale: (S.estado && S.estado.turno && S.estado.turno.guardia) || null, fotos: {} }; pintarRelevo(); }
   document.getElementById('f-nota-label').textContent = (fij || pro) ? 'Observación (opcional)' : paq ? 'Reporte de paquetería (se llena solo con los pendientes; puedes agregar algo abajo)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
-  document.getElementById('nota').placeholder = pro ? 'Ej. No me queda claro qué hacer si el residente no contesta' : fij ? 'Ej. La casa 40 no contestó el WhatsApp' : texto ? 'Ej. Faltan 2 garrafones, papel de baño y pilas para la lámpara' : 'Ej. 3 autos, uno sin placas';
+  document.getElementById('nota').placeholder = '';
   document.getElementById('f-ayuda').textContent = paq ? 'Revisa la lista y toca Enviar. Después la mandas al grupo de la mesa directiva con el botón de WhatsApp.' : texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
   document.getElementById('f-ayuda').style.display = (fij || pro) ? 'none' : 'block';
   document.getElementById('f-fotos').style.display = (fij || pro || paq || rv) ? 'none' : '';
-  if (rv) { document.getElementById('f-ayuda').style.display = 'none'; document.getElementById('f-nota-label').textContent = 'Novedades que se entregan (opcional)'; document.getElementById('nota').placeholder = 'Ej. Quedó paquetería de la casa 12, la pluma falla'; }
+  if (rv) { document.getElementById('f-ayuda').style.display = 'none'; document.getElementById('f-nota-label').textContent = 'Novedades que se entregan (opcional)'; document.getElementById('nota').placeholder = ''; }
   document.getElementById('btn-enviar').disabled = false;
   document.getElementById('btn-enviar').textContent = texto ? '✔ Enviar reporte' : '✔ Enviar evidencia';
   document.getElementById('nota').value = paq ? textoPaquetes((S.estado && S.estado.paquetes) || []) : '';
