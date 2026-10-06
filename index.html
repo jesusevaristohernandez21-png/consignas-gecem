@@ -212,7 +212,7 @@
     </div>
     </details>
     <details id="sec-hechas"><summary id="hechas-titulo">Hechas hoy</summary><div id="lista-hechas"></div></details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.9 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.10 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -291,6 +291,14 @@
     <div class="card"><div class="inst" id="f-inst"></div><div class="mini" style="margin-top:8px">Sube la evidencia como: <b id="f-guardia"></b></div></div>
     <div id="f-fijas" style="display:none"></div>
     <div id="f-protos" style="display:none"></div>
+    <!-- v3.10: cambio de turno con 3 fotos -->
+    <div id="f-relevo" style="display:none">
+      <div class="card"><label style="margin-top:0">¿Quién ENTRA?</label><div class="chips" id="rv-entra"></div><label>¿Quién SALE?</label><div class="chips" id="rv-sale"></div></div>
+      <div class="card" data-slot="entra"><div class="titulo">1. Foto del guardia que entra</div><div class="mini">Uniforme completo, de frente, en la caseta.</div><div class="minis rv-mini"></div><button class="btn rojo chico">📷 Tomar foto</button></div>
+      <div class="card" data-slot="sale"><div class="titulo">2. Foto del guardia que sale</div><div class="mini">De frente, en la caseta.</div><div class="minis rv-mini"></div><button class="btn rojo chico">📷 Tomar foto</button></div>
+      <div class="card" data-slot="caseta"><div class="titulo">3. Foto de la caseta en orden</div><div class="mini">Que se vea limpia y con el equipo en su lugar (radio, llaves, bitácora).</div><div class="minis rv-mini"></div><button class="btn rojo chico">📷 Tomar foto</button></div>
+      <input type="file" id="rv-archivo" accept="image/*" capture="environment" style="display:none">
+    </div>
     <input type="file" id="archivo" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this)">
     <input type="file" id="galeria" accept="image/*" multiple style="display:none" onchange="fotoElegida(this)">
     <div class="dos" id="f-fotos">
@@ -391,7 +399,7 @@
         <label>Título</label><input id="c-titulo" placeholder="Ej. Autos en estacionamiento">
         <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3" placeholder="Ej. Foto general del estacionamiento de visitas mostrando los autos"></textarea>
         <label>Tipo de evidencia</label>
-        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option></select>
+        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option></select>
         <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
         <label>Hora del aviso (24 h)</label><input id="c-hora" type="time">
         <label>Días</label>
@@ -710,7 +718,32 @@ function pintarBotonesChecador() {
   b.textContent = enTurno ? '🔴 Marcar mi salida' : '🟢 Marcar mi entrada';
   b.onclick = function () { checar(enTurno ? 'salida' : 'entrada'); };
   el.appendChild(b);
+  // v3.10: botón de cambio de turno con fotos (si la caseta tiene esa consigna y aún no se hizo hoy)
+  var rvIt = itemRelevoHoy();
+  if (rvIt) { var b2 = document.createElement('button'); b2.className = 'btn sec'; b2.textContent = '🔄 Registrar cambio de turno (con fotos)'; b2.onclick = function () { abrirFoto(rvIt); }; el.appendChild(b2); }
 }
+// v3.10: cambio de turno con fotos (quién entra, quién sale, caseta)
+function pintarRelevo() {
+  var R = S.relevo, gs = ((S.caseta && S.caseta.guardias) || []).map(function (g) { return g.nombre; });
+  ['entra', 'sale'].forEach(function (k) {
+    var ch = document.getElementById('rv-' + k); ch.innerHTML = '';
+    gs.forEach(function (n) { var b = document.createElement('button'); b.className = 'chip' + (R[k] === n ? ' sel' : ''); b.textContent = n; b.onclick = function () { R[k] = n; pintarRelevo(); }; ch.appendChild(b); });
+  });
+  document.querySelectorAll('#f-relevo [data-slot]').forEach(function (card) {
+    var slot = card.dataset.slot, m = card.querySelector('.rv-mini'), b = card.querySelector('button'); m.innerHTML = '';
+    if (R.fotos[slot]) { var d = document.createElement('div'); d.className = 'mini-f'; var im = document.createElement('img'); im.src = URL.createObjectURL(R.fotos[slot]); d.appendChild(im); var x = document.createElement('button'); x.textContent = '✕'; x.onclick = function () { delete R.fotos[slot]; pintarRelevo(); }; d.appendChild(x); m.appendChild(d); }
+    b.textContent = R.fotos[slot] ? '📷 Repetir foto' : '📷 Tomar foto'; b.className = 'btn chico ' + (R.fotos[slot] ? 'sec' : 'rojo');
+    b.onclick = function () { fotoRelevo(slot); };
+  });
+  var n = ['entra', 'sale', 'caseta'].filter(function (k) { return R.fotos[k]; }).length;
+  document.getElementById('btn-enviar').textContent = '✔ Registrar cambio de turno (' + n + '/3 fotos)';
+}
+function fotoRelevo(slot) {
+  var inp = document.getElementById('rv-archivo');
+  inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; cargando(true, 'Preparando foto…'); comprimir(f, 1280, 0.72).then(function (b) { S.relevo.fotos[slot] = b; pintarRelevo(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; }); };
+  inp.click();
+}
+function itemRelevoHoy() { return ((S.estado && S.estado.items) || []).filter(function (it) { return esRelevo(it) && !it.turno_anterior && it.estado !== 'cumplida' && it.estado !== 'tarde'; })[0] || null; }
 function ubicacionActual() {
   return new Promise(function (res) {
     if (!navigator.geolocation) return res(null);
@@ -1015,6 +1048,7 @@ function tarjetaAnterior(it) {
 }
 function esTexto(it) { return it && (it.tipo === 'texto' || it.tipo === 'fijas' || it.tipo === 'protocolo' || it.tipo === 'paqueteria'); }
 function esPaq(it) { return it && it.tipo === 'paqueteria'; }
+function esRelevo(it) { return it && it.tipo === 'relevo'; }
 function esFijas(it) { return it && it.tipo === 'fijas'; }
 function esProto(it) { return it && it.tipo === 'protocolo'; }
 // Texto del botón según el tipo de consigna
@@ -1022,10 +1056,11 @@ function accion(it, ahora) {
   if (esProto(it)) return '📖 Leer los protocolos';
   if (esFijas(it)) return '✅ Palomear consignas fijas';
   if (esPaq(it)) return '📦 Enviar reporte de paquetería';
+  if (esRelevo(it)) return '🔄 Registrar cambio de turno';
   return (esTexto(it) ? '📝 Enviar reporte' : '📷 Subir foto') + (ahora ? ' ahora' : '');
 }
 // v3.3: la consigna se ve desde antes, pero solo se puede hacer a partir de su hora
-function yaEsHora(it) { return !(it.minutos < 0); }
+function yaEsHora(it) { return esRelevo(it) || !(it.minutos < 0); }
 function tarjetaAbierta(it) {
   var d = document.createElement('div'); d.className = 'card abierta';
   var ya = yaEsHora(it);
@@ -1097,13 +1132,16 @@ function abrirFoto(it, agregar) {
   document.getElementById('f-sub').textContent = 'Hora: ' + it.hora + ' · ' + S.caseta.nombre;
   document.getElementById('f-inst').textContent = it.instruccion || '';
   document.getElementById('f-guardia').textContent = S.guardia;
-  var texto = esTexto(it) && !agregar, fij = esFijas(it) && !agregar, pro = esProto(it) && !agregar, paq = esPaq(it) && !agregar;
-  document.getElementById('f-detalle').style.display = texto ? 'block' : 'none';
+  var texto = esTexto(it) && !agregar, fij = esFijas(it) && !agregar, pro = esProto(it) && !agregar, paq = esPaq(it) && !agregar, rv = esRelevo(it) && !agregar;
+  document.getElementById('f-detalle').style.display = (texto || rv) ? 'block' : 'none';
+  document.getElementById('f-relevo').style.display = rv ? 'block' : 'none';
+  if (rv) { S.relevo = { entra: null, sale: (S.estado && S.estado.turno && S.estado.turno.guardia) || null, fotos: {} }; pintarRelevo(); }
   document.getElementById('f-nota-label').textContent = (fij || pro) ? 'Observación (opcional)' : paq ? 'Reporte de paquetería (se llena solo con los pendientes; puedes agregar algo abajo)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
   document.getElementById('nota').placeholder = pro ? 'Ej. No me queda claro qué hacer si el residente no contesta' : fij ? 'Ej. La casa 40 no contestó el WhatsApp' : texto ? 'Ej. Faltan 2 garrafones, papel de baño y pilas para la lámpara' : 'Ej. 3 autos, uno sin placas';
   document.getElementById('f-ayuda').textContent = paq ? 'Revisa la lista y toca Enviar. Después la mandas al grupo de la mesa directiva con el botón de WhatsApp.' : texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
   document.getElementById('f-ayuda').style.display = (fij || pro) ? 'none' : 'block';
-  document.getElementById('f-fotos').style.display = (fij || pro || paq) ? 'none' : '';
+  document.getElementById('f-fotos').style.display = (fij || pro || paq || rv) ? 'none' : '';
+  if (rv) { document.getElementById('f-ayuda').style.display = 'none'; document.getElementById('f-nota-label').textContent = 'Novedades que se entregan (opcional)'; document.getElementById('nota').placeholder = 'Ej. Quedó paquetería de la casa 12, la pluma falla'; }
   document.getElementById('btn-enviar').disabled = false;
   document.getElementById('btn-enviar').textContent = texto ? '✔ Enviar reporte' : '✔ Enviar evidencia';
   document.getElementById('nota').value = paq ? textoPaquetes((S.estado && S.estado.paquetes) || []) : '';
@@ -1131,6 +1169,7 @@ function pintarMiniaturas() {
     g.appendChild(d);
   });
   var texto = esTexto(S.actual) && !S.modoAgregar;
+  if (esRelevo(S.actual) && !S.modoAgregar) { document.getElementById('f-detalle').style.display = 'block'; return; }
   document.getElementById('f-detalle').style.display = S.blobs.length || texto ? 'block' : 'none';
   if (esProto(S.actual) && !S.modoAgregar) { contarProtocolos(); return; }
   if (esFijas(S.actual) && !S.modoAgregar) { contarFijas(); return; }
@@ -1203,7 +1242,7 @@ function comprimir(file, max, calidad) {
 }
 function enviar() {
   var texto = esTexto(S.actual) && !S.modoAgregar, fij = esFijas(S.actual) && !S.modoAgregar, pro = esProto(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
-  if (!S.blobs.length && !texto) return err('err-foto', 'Primero toma la foto.');
+  if (!S.blobs.length && !texto && !(esRelevo(S.actual) && !S.modoAgregar)) return err('err-foto', 'Primero toma la foto.');
   if (fij) {
     var lista = (S.estado && S.estado.fijas) || [];
     var cajas = Array.prototype.slice.call(document.querySelectorAll('#f-fijas input'));
@@ -1217,6 +1256,17 @@ function enviar() {
     nota = 'Leyó y confirmó ' + lp.length + ' protocolos:\n' + lp.map(function (f) { return '• ' + f.titulo; }).join('\n') + (nota ? '\nObservación: ' + nota : '');
   }
   if (texto && !nota) return err('err-foto', 'Escribe el reporte.');
+  // v3.10: cambio de turno: quién entra, quién sale y 3 fotos obligatorias
+  var rv = esRelevo(S.actual) && !S.modoAgregar;
+  if (rv) {
+    var R = S.relevo || {};
+    if (!R.entra) return err('err-foto', 'Elige quién ENTRA.');
+    if (!R.sale) return err('err-foto', 'Elige quién SALE.');
+    if (R.entra === R.sale) return err('err-foto', 'El que entra y el que sale no pueden ser el mismo.');
+    if (!R.fotos.entra || !R.fotos.sale || !R.fotos.caseta) return err('err-foto', 'Faltan fotos: se necesitan las 3 (entra, sale y caseta).');
+    S.blobs = [R.fotos.entra, R.fotos.sale, R.fotos.caseta];
+    nota = 'Entra: ' + R.entra + ' · Sale: ' + R.sale + (nota ? '\nNovedades: ' + nota : '');
+  }
   var btn = document.getElementById('btn-enviar'); btn.disabled = true;
   cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
@@ -1225,7 +1275,9 @@ function enviar() {
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
         S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
-        document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : pro ? 'Protocolos confirmados' : fij ? 'Consignas fijas confirmadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
+        document.getElementById('l-titulo').textContent = S.modoAgregar ? 'Fotos agregadas' : rv ? 'Cambio de turno registrado' : pro ? 'Protocolos confirmados' : fij ? 'Consignas fijas confirmadas' : texto ? 'Reporte enviado' : 'Evidencia guardada';
+        // v3.10: el cambio de turno también checa la entrada del que entra (cierra la salida del que sale)
+        if (rv && S.relevo && S.relevo.entra) { var entra = S.relevo.entra; S.guardia = entra; ls('cg_guardia', entra); ubicacionActual().then(function (u) { return llamar('checar', { token: S.token, guardia: entra, tipo: 'entrada', lat: u ? u.lat : '', lng: u ? u.lng : '', precision: u ? u.precision : '' }); }).catch(function () {}); }
         document.getElementById('l-estado').innerHTML = r.estado === 'cumplida' ? '<span class="etiqueta verde">A TIEMPO</span>' : '<span class="etiqueta ambar">TARDE (' + r.minutos + ' min)</span>';
         // v3.1.1: solo las consignas marcadas por el administrador se comparten al grupo; las demás son internas de GECEM
         document.getElementById('l-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
