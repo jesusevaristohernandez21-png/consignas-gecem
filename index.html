@@ -36,7 +36,7 @@
   #sec-porcompartir .mini{margin:-2px 4px 8px!important}
   #sec-chips{background:#fff;border:1px solid var(--borde);border-radius:14px;padding:0 10px 10px;margin-bottom:14px}
   #sec-chips h2{margin:10px 0 8px;background:var(--azul)}
-  #card-turno{border:2px solid var(--azul);background:#eaf2fb}
+  #card-turno{display:none!important}
   details.rapido{padding:0;overflow:hidden}
   details.rapido summary{padding:10px 14px;background:#334155;color:#fff;font-size:14px}
   details.rapido[open] summary{margin-bottom:0}
@@ -168,8 +168,8 @@
     <!-- ===== HOY ===== -->
     <div class="pane on" data-pane="hoy">
     <!-- v3.8: checador (entrada/salida con ubicación) en lugar del cambio de turno -->
-    <div class="card" id="card-turno"></div>
-    <div id="sec-chips"><h2>⏱ Checador · ¿Quién eres?</h2>
+    <div class="card" id="card-turno" style="display:none"></div>
+    <div id="sec-chips"><h2>¿Quién eres?</h2>
     <div class="chips" id="chips-guardia"></div>
     <div id="checador-botones"></div>
     <div class="error" id="err-checar"></div></div>
@@ -216,7 +216,7 @@
       <div class="error" id="err-material"></div>
     </div>
     </details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.10.2 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.11 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -231,10 +231,16 @@
 
     <!-- ===== TURNO ===== -->
     <div class="pane" data-pane="turno">
-      <h2>⏱ Checadas en esta caseta</h2>
+      <!-- v3.11: checador en su propia sección, con horas de la semana (domingo a sábado) -->
+      <h2>⏱ Checador</h2>
       <div id="turno-resumen" class="card"><div class="mini">Cargando…</div></div>
-      <h2>Últimas entradas y salidas</h2>
-      <div id="mis-turnos"></div>
+      <div class="card"><label style="margin-top:0">¿Quién eres?</label><div class="chips" id="ck-chips"></div><div id="ck-botones"></div><div class="error" id="err-ck"></div></div>
+      <h2>📅 Mi semana</h2>
+      <div class="card">
+        <div class="fila"><button class="chip" onclick="moverSemana(-1)">‹</button><b id="ck-semana-titulo" style="text-align:center;flex:1">Semana</b><button class="chip" onclick="moverSemana(1)">›</button></div>
+        <div class="mini centro" style="margin-top:4px">De domingo a sábado. El turno cuenta en la semana en que inicia.</div>
+        <div id="ck-semana" style="margin-top:8px"></div>
+      </div>
     </div>
 
     <!-- ===== PROTOCOLOS ===== -->
@@ -284,7 +290,7 @@
     <button data-t="paqueteria" onclick="tabInicio('paqueteria')"><span>📦</span>Paquetería</button>
     <button data-t="bitacora" onclick="tabInicio('bitacora')"><span>📝</span>Bitácora</button>
     <button data-t="protocolos" onclick="tabInicio('protocolos')"><span>📖</span>Protocolos</button>
-    <button data-t="turno" onclick="tabInicio('turno')"><span>⏱</span>Checadas</button>
+    <button data-t="turno" onclick="tabInicio('turno')"><span>⏱</span>Checador</button>
   </nav>
 </div>
 
@@ -638,7 +644,7 @@ function tabInicio(n) {
   document.querySelectorAll('#p-inicio .pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane === n); });
   document.querySelectorAll('#barra button').forEach(function (b) { b.classList.toggle('on', b.dataset.t === n); });
   ls('cg_tab', n); window.scrollTo(0, 0);
-  if (n === 'turno') cargarMisTurnos();
+  if (n === 'turno') { pintarChecador(); cargarSemana(); }
 }
 function esGuardia() { return false; }
 
@@ -714,17 +720,52 @@ function pintarTurno() {
 }
 // v3.8: checador — entrada/salida con ubicación, aviso al instante a GECEM
 function pintarBotonesChecador() {
+  // v3.11: en Hoy solo queda el botón de cambio de turno; el checador (entrada/salida) vive en su pestaña
   var el = document.getElementById('checador-botones'); if (!el) return; el.innerHTML = '';
-  var t = S.estado && S.estado.turno;
+  var R = S.estado && S.estado.relevo;
+  if (R) {
+    if (R.hecho) { el.innerHTML = '<div class="mini centro" style="margin-top:6px">✔ Cambio de turno registrado hoy a las ' + esc(R.hecho_hora) + '</div>'; }
+    else { var b2 = document.createElement('button'); b2.className = 'btn sec'; b2.textContent = '🔄 Registrar cambio de turno (con fotos)'; b2.onclick = function () { if (!S.guardia) { err('err-checar', 'Toca tu nombre primero.'); return; } abrirFoto(itemRelevoHoy()); }; el.appendChild(b2); }
+  }
+  pintarChecador();
+}
+function pintarChecador() {
+  var ch = document.getElementById('ck-chips'), el = document.getElementById('ck-botones'); if (!ch || !el || !S.estado) return;
+  ch.innerHTML = ''; el.innerHTML = '';
+  S.estado.caseta.guardias.forEach(function (g) {
+    var b = document.createElement('button'); b.className = 'chip' + (S.guardia === g.nombre ? ' sel' : ''); b.textContent = g.nombre;
+    b.onclick = function () { S.guardia = g.nombre; ls('cg_guardia', g.nombre); pintarInicio(); cargarSemana(); }; ch.appendChild(b);
+  });
+  var t = S.estado.turno;
+  document.getElementById('turno-resumen').innerHTML = t && t.guardia
+    ? '<div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + ' del ' + esc(String(t.fecha).split('-').reverse().slice(0, 2).join('/')) + (t.retraso_min ? ' · <b style="color:var(--ambar)">' + t.retraso_min + ' min tarde</b>' : ' · a tiempo') + '</div>'
+    : '<div class="titulo">⚪ Nadie en turno</div><div class="mini">Elige tu nombre y marca tu entrada. El relevo es a las ' + esc(S.estado.hora_cambio || '09:00') + '.</div>';
   if (!S.guardia) { el.innerHTML = '<div class="mini">Toca tu nombre para poder checar.</div>'; return; }
   var enTurno = t && t.guardia === S.guardia;
   var b = document.createElement('button'); b.className = 'btn ' + (enTurno ? 'rojo' : 'verde');
   b.textContent = enTurno ? '🔴 Marcar mi salida' : '🟢 Marcar mi entrada';
   b.onclick = function () { checar(enTurno ? 'salida' : 'entrada'); };
   el.appendChild(b);
-  // v3.10: botón de cambio de turno con fotos (si la caseta tiene esa consigna y aún no se hizo hoy)
-  var rvIt = itemRelevoHoy();
-  if (rvIt) { var b2 = document.createElement('button'); b2.className = 'btn sec'; b2.textContent = '🔄 Registrar cambio de turno (con fotos)'; b2.onclick = function () { abrirFoto(rvIt); }; el.appendChild(b2); }
+}
+// v3.11: Mi semana (domingo a sábado)
+S.semanaRef = null;
+function moverSemana(n) { var d = S.semanaRef ? new Date(S.semanaRef) : new Date(); d.setDate(d.getDate() + 7 * n); S.semanaRef = d; cargarSemana(); }
+function cargarSemana() {
+  var el = document.getElementById('ck-semana'); if (!el || !S.token) return;
+  var ref = S.semanaRef ? new Date(S.semanaRef) : new Date();
+  var f = ref.getFullYear() + '-' + ('0' + (ref.getMonth() + 1)).slice(-2) + '-' + ('0' + ref.getDate()).slice(-2);
+  el.innerHTML = '<div class="mini">Cargando…</div>';
+  llamar('checador_semana', { token: S.token, guardia: S.guardia || '', semana: f }).then(function (r) {
+    var hoy = (S.estado && S.estado.hoy) || '';
+    document.getElementById('ck-semana-titulo').textContent = (S.guardia || 'Toda la caseta') + ' · ' + r.desde.split('-').reverse().slice(0, 2).join('/') + ' al ' + r.hasta.split('-').reverse().slice(0, 2).join('/');
+    var hm = function (m) { return Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2) + ' min'; };
+    el.innerHTML = '<table style="width:100%"><tr><th>Día</th><th>Entrada</th><th>Salida</th><th>Horas</th></tr>' + r.dias.map(function (d) {
+      var esHoy = d.fecha === hoy;
+      if (!d.turnos.length) return '<tr' + (esHoy ? ' style="background:#eaf2fb"' : '') + '><td>' + d.dia + ' ' + d.fecha.slice(8) + '</td><td colspan="3" class="mini">—</td></tr>';
+      return d.turnos.map(function (t, i) { return '<tr' + (esHoy ? ' style="background:#eaf2fb"' : '') + '><td>' + (i ? '' : d.dia + ' ' + d.fecha.slice(8)) + '</td><td>' + esc(t.entrada || '—') + (t.retraso_min ? ' <span style="color:var(--ambar)">+' + t.retraso_min + '</span>' : '') + '</td><td>' + (t.abierto ? '<span style="color:var(--verde)">en turno</span>' : esc(t.salida || '—')) + '</td><td>' + (t.minutos ? hm(t.minutos) : (t.abierto ? '…' : '—')) + '</td></tr>'; }).join('');
+    }).join('') + '</table>' +
+      '<div class="kpis" style="margin-top:10px;grid-template-columns:repeat(2,1fr)"><div class="kpi"><b>' + r.turnos + '</b><span>turnos</span></div><div class="kpi"><b>' + hm(r.total_min) + '</b><span>trabajadas</span></div></div>';
+  }).catch(function (e) { el.innerHTML = '<div class="card mini">' + esc(e.message) + '</div>'; });
 }
 // v3.10: cambio de turno con fotos (quién entra, quién sale, caseta)
 function pintarRelevo() {
@@ -747,7 +788,7 @@ function fotoRelevo(slot) {
   inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; cargando(true, 'Preparando foto…'); comprimir(f, 1280, 0.72).then(function (b) { S.relevo.fotos[slot] = b; pintarRelevo(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; }); };
   inp.click();
 }
-function itemRelevoHoy() { return ((S.estado && S.estado.items) || []).filter(function (it) { return esRelevo(it) && !it.turno_anterior && it.estado !== 'cumplida' && it.estado !== 'tarde'; })[0] || null; }
+function itemRelevoHoy() { var R = S.estado && S.estado.relevo; return (R && !R.hecho) ? R : null; }
 function ubicacionActual() {
   return new Promise(function (res) {
     if (!navigator.geolocation) return res(null);
@@ -755,7 +796,7 @@ function ubicacionActual() {
   });
 }
 function checar(tipo) {
-  err('err-checar', '');
+  err('err-checar', ''); err('err-ck', '');
   if (!S.guardia) return err('err-checar', 'Toca tu nombre primero.');
   if (!confirm((tipo === 'salida' ? '¿Marcar SALIDA de ' : '¿Marcar ENTRADA de ') + S.guardia + '?')) return;
   cargando(true, 'Obteniendo ubicación…');
@@ -765,8 +806,8 @@ function checar(tipo) {
     return llamar('checar', { token: S.token, guardia: S.guardia, tipo: tipo, lat: u ? u.lat : '', lng: u ? u.lng : '', precision: u ? u.precision : '' });
   }).then(function (r) {
     alert((r.tipo === 'salida' ? '🔴 Salida registrada: ' : '🟢 Entrada registrada: ') + S.guardia + ' a las ' + r.hora + (r.retraso_min ? ' (' + r.retraso_min + ' min tarde)' : '') + '. Ya se avisó a GECEM.');
-    return cargarEstado(true);
-  }).catch(function (e) { err('err-checar', e.message); }).finally(function () { cargando(false); });
+    return cargarEstado(true).then(function () { cargarSemana(); });
+  }).catch(function (e) { err('err-checar', e.message); err('err-ck', e.message); }).finally(function () { cargando(false); });
 }
 // v3.8: material faltante → bitácora + aviso inmediato a GECEM
 function reportarMaterial() {
@@ -832,20 +873,6 @@ function pintarProtocolosHoy(lista) {
     d.innerHTML = '<summary>' + esc(p.titulo) + '</summary><div class="cuerpo">' + esc(p.texto) + '</div>';
     el.appendChild(d);
   });
-}
-function cargarMisTurnos() {
-  var res = document.getElementById('turno-resumen'), lista = document.getElementById('mis-turnos');
-  var t = S.estado && S.estado.turno;
-  res.innerHTML = t && t.guardia
-    ? '<div class="titulo">🟢 En turno: ' + esc(t.guardia) + '</div><div class="mini">Entró ' + esc(String(t.entrada || '').slice(11)) + (t.retraso_min ? ' · <b style="color:var(--ambar)">' + t.retraso_min + ' min tarde</b>' : ' · a tiempo') + '</div><div class="mini">Para checar entrada o salida usa la pantalla <b>Hoy</b>.</div>'
-    : '<div class="titulo">⚪ Nadie en turno</div><div class="mini">Para marcar entrada usa la pantalla <b>Hoy</b>. El relevo es a las ' + esc((S.estado && S.estado.hora_cambio) || '09:00') + '.</div>';
-  lista.innerHTML = '<div class="mini">Cargando…</div>';
-  llamar('mis_turnos', { token: S.token }).then(function (r) {
-    if (!r.filas.length) { lista.innerHTML = '<div class="card mini">Todavía no hay turnos registrados en esta caseta.</div>'; return; }
-    lista.innerHTML = '<div style="overflow-x:auto"><table><tr><th>Fecha</th><th>Guardia</th><th>Entrada</th><th>Salida</th><th>Tarde</th></tr>' + r.filas.map(function (f) {
-      return '<tr><td>' + esc(f.fecha.slice(5)) + '</td><td>' + esc(f.guardia) + '</td><td>' + esc(f.entrada) + '</td><td>' + esc(f.salida || '—') + '</td><td>' + (f.retraso_min ? '<span style="color:var(--ambar)">' + f.retraso_min + '</span>' : '0') + '</td></tr>';
-    }).join('') + '</table></div>';
-  }).catch(function (e) { lista.innerHTML = '<div class="card mini">' + esc(e.message) + '</div>'; });
 }
 // ---------- v3.1: paquetería ----------
 function pintarPaquetes(lista) {
