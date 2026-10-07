@@ -216,7 +216,7 @@
       <div class="error" id="err-material"></div>
     </div>
     </details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.11 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.12 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -720,13 +720,8 @@ function pintarTurno() {
 }
 // v3.8: checador — entrada/salida con ubicación, aviso al instante a GECEM
 function pintarBotonesChecador() {
-  // v3.11: en Hoy solo queda el botón de cambio de turno; el checador (entrada/salida) vive en su pestaña
-  var el = document.getElementById('checador-botones'); if (!el) return; el.innerHTML = '';
-  var R = S.estado && S.estado.relevo;
-  if (R) {
-    if (R.hecho) { el.innerHTML = '<div class="mini centro" style="margin-top:6px">✔ Cambio de turno registrado hoy a las ' + esc(R.hecho_hora) + '</div>'; }
-    else { var b2 = document.createElement('button'); b2.className = 'btn sec'; b2.textContent = '🔄 Registrar cambio de turno (con fotos)'; b2.onclick = function () { if (!S.guardia) { err('err-checar', 'Toca tu nombre primero.'); return; } abrirFoto(itemRelevoHoy()); }; el.appendChild(b2); }
-  }
+  // v3.12: en Hoy solo quedan los chips de "¿Quién eres?"; el cambio de turno y el checador viven en la pestaña ⏱ Checador
+  var el = document.getElementById('checador-botones'); if (el) el.innerHTML = '';
   pintarChecador();
 }
 function pintarChecador() {
@@ -746,6 +741,12 @@ function pintarChecador() {
   b.textContent = enTurno ? '🔴 Marcar mi salida' : '🟢 Marcar mi entrada';
   b.onclick = function () { checar(enTurno ? 'salida' : 'entrada'); };
   el.appendChild(b);
+  // v3.12: cambio de turno (opcional, con fotos) aquí, no en Hoy
+  var R = S.estado.relevo;
+  if (R) {
+    if (R.hecho) { var d = document.createElement('div'); d.className = 'mini centro'; d.style.marginTop = '6px'; d.textContent = '✔ Cambio de turno registrado hoy a las ' + R.hecho_hora; el.appendChild(d); }
+    else { var b2 = document.createElement('button'); b2.className = 'btn sec'; b2.textContent = '🔄 Registrar cambio de turno (con fotos)'; b2.onclick = function () { abrirFoto(itemRelevoHoy()); }; el.appendChild(b2); }
+  }
 }
 // v3.11: Mi semana (domingo a sábado)
 S.semanaRef = null;
