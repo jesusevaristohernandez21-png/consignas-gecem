@@ -216,7 +216,7 @@
       <div class="error" id="err-material"></div>
     </div>
     </details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.12 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.13 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -283,6 +283,11 @@
       <div id="lista-paquetes"></div>
       <button class="btn wa" id="pq-compartir" onclick="compartirPaquetes()" style="display:none">📲 Compartir pendientes por WhatsApp</button>
       <div class="mini centro" id="pq-compartir-nota" style="display:none">Al final del día (o cuando haga falta) manda esta lista al grupo de la mesa directiva para que sepan qué paquetes siguen en caseta.</div>
+      <!-- v3.13: informe de cierre del día (recibidos, entregados y los que quedan en caseta) -->
+      <h2>📋 Informe del día</h2>
+      <div class="card" id="pq-informe"></div>
+      <button class="btn wa" onclick="compartirInformePaqueteria()">📲 Compartir informe del día por WhatsApp</button>
+      <div class="mini centro">Al cerrar el turno manda este informe al grupo: cuántos paquetes llegaron hoy, cuántos se entregaron y cuántos quedan en caseta.</div>
     </div>
   </main>
   <nav class="barra" id="barra">
@@ -882,6 +887,7 @@ function pintarPaquetes(lista) {
   var b = document.querySelector('#barra [data-t="paqueteria"]'); if (b) b.innerHTML = '<span>📦</span>Paquetería' + (lista.length ? ' (' + lista.length + ')' : '');
   document.getElementById('pq-compartir').style.display = lista.length ? '' : 'none';
   document.getElementById('pq-compartir-nota').style.display = lista.length ? '' : 'none';
+  pintarInformePaqueteria();
   if (!lista.length) { el.innerHTML = '<div class="card mini">No hay paquetes pendientes.</div>'; return; }
   lista.forEach(function (q) {
     var d = document.createElement('div'); d.className = 'card abierta';
@@ -925,7 +931,7 @@ function registrarPaquete() {
   cargando(true, 'Registrando…');
   blobADataURL(S.paqBlob).then(function (data) { return llamar('paquete_nuevo', { token: S.token, guardia: S.guardia, casa: casa, descripcion: desc, foto: data }); }).then(function (r) {
     document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = ''; S.paqBlob = null; pintarMiniPaquete();
-    if (S.estado) { S.estado.paquetes = r.paquetes; ls('cg_estado', JSON.stringify(S.estado)); }
+    if (S.estado) { S.estado.paquetes = r.paquetes; S.estado.paquetes_hoy = r.paquetes_hoy || S.estado.paquetes_hoy; ls('cg_estado', JSON.stringify(S.estado)); }
     pintarPaquetes(r.paquetes || []);
   }).catch(function (e) { err('err-paq', e.message); }).finally(function () { cargando(false); });
 }
@@ -948,6 +954,30 @@ function textoPaquetes(lista) {
   t += '\nFavor de pasar a caseta a recogerlos.' + (S.guardia ? '\nGuardia: ' + S.guardia : '');
   return t;
 }
+// v3.13: informe de cierre del día de paquetería
+function resumenPaqueteria() {
+  var hoy = (S.estado && S.estado.hoy) || '', dia = (S.estado && S.estado.paquetes_hoy) || [], pend = (S.estado && S.estado.paquetes) || [];
+  var recibidos = dia.filter(function (q) { return q.fecha === hoy; });
+  var entregados = dia.filter(function (q) { return q.estado === 'entregado' && String(q.entregado || '').slice(0, 10) === hoy; });
+  return { recibidos: recibidos, entregados: entregados, pendientes: pend };
+}
+function pintarInformePaqueteria() {
+  var el = document.getElementById('pq-informe'); if (!el) return;
+  var r = resumenPaqueteria();
+  el.innerHTML = '<div class="fila"><div><div class="titulo">Llegaron hoy: ' + r.recibidos.length + '</div><div class="mini">Entregados hoy: ' + r.entregados.length + ' · Quedan en caseta: ' + r.pendientes.length + '</div></div></div>';
+}
+function textoInformePaqueteria() {
+  var c = (S.estado && S.estado.caseta && S.estado.caseta.nombre) || 'caseta', r = resumenPaqueteria();
+  var f = function (q) { return '• Casa ' + q.casa + (q.descripcion ? ' — ' + q.descripcion : ''); };
+  var t = '📦 *Informe de paquetería — ' + c + '*\n' + ((S.estado && S.estado.hoy_legible) || '') + ' · ' + (new Date()).toTimeString().slice(0, 5) + '\n\n';
+  t += '📥 Llegaron hoy: *' + r.recibidos.length + '*\n' + (r.recibidos.length ? r.recibidos.map(function (q) { return f(q) + ' — ' + q.hora_llegada; }).join('\n') + '\n' : '');
+  t += '\n✅ Entregados hoy: *' + r.entregados.length + '*\n' + (r.entregados.length ? r.entregados.map(function (q) { return f(q) + ' — ' + q.hora_entrega; }).join('\n') + '\n' : '');
+  t += '\n🏠 Quedan en caseta: *' + r.pendientes.length + '*\n';
+  if (r.pendientes.length) { r.pendientes.forEach(function (q) { var d = diasEnCaseta(q); t += f(q) + (d === 0 ? ' — llegó hoy ' + q.hora_llegada : ' — desde el ' + String(q.fecha).split('-').reverse().slice(0, 2).join('/') + ' (' + d + (d === 1 ? ' día' : ' días') + ')') + '\n'; }); t += '\nFavor de pasar a caseta a recogerlos.'; }
+  else t += 'Ningún paquete pendiente. ✅';
+  return t + (S.guardia ? '\nGuardia: ' + S.guardia : '');
+}
+function compartirInformePaqueteria() { abrirWhatsApp(textoInformePaqueteria()); }
 function compartirPaquetes() {
   abrirWhatsApp(textoPaquetes((S.estado && S.estado.paquetes) || []));
 }
@@ -972,7 +1002,7 @@ function entregarPaquete(q) {
   cargando(true, 'Guardando…');
   blobADataURL(S.entrega.blob).then(function (data) { return llamar('paquete_entregar', { token: S.token, guardia: S.guardia, id: q.id, foto: data }); }).then(function (r) {
     S.entrega = null;
-    if (S.estado) { S.estado.paquetes = r.paquetes; ls('cg_estado', JSON.stringify(S.estado)); }
+    if (S.estado) { S.estado.paquetes = r.paquetes; S.estado.paquetes_hoy = r.paquetes_hoy || S.estado.paquetes_hoy; ls('cg_estado', JSON.stringify(S.estado)); }
     pintarPaquetes(r.paquetes || []);
   }).catch(function (e) { err('err-paq', e.message); }).finally(function () { cargando(false); });
 }
@@ -1168,7 +1198,7 @@ function abrirFoto(it, agregar) {
   document.getElementById('f-detalle').style.display = (texto || rv) ? 'block' : 'none';
   document.getElementById('f-relevo').style.display = rv ? 'block' : 'none';
   if (rv) { S.relevo = { entra: null, sale: (S.estado && S.estado.turno && S.estado.turno.guardia) || null, fotos: {} }; pintarRelevo(); }
-  document.getElementById('f-nota-label').textContent = (fij || pro) ? 'Observación (opcional)' : paq ? 'Reporte de paquetería (se llena solo con los pendientes; puedes agregar algo abajo)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
+  document.getElementById('f-nota-label').textContent = (fij || pro) ? 'Observación (opcional)' : paq ? 'Informe de paquetería del día (se llena solo: llegaron, entregados y los que quedan; puedes agregar algo abajo)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
   document.getElementById('nota').placeholder = '';
   document.getElementById('f-ayuda').textContent = paq ? 'Revisa la lista y toca Enviar. Después la mandas al grupo de la mesa directiva con el botón de WhatsApp.' : texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
   document.getElementById('f-ayuda').style.display = (fij || pro) ? 'none' : 'block';
@@ -1176,7 +1206,7 @@ function abrirFoto(it, agregar) {
   if (rv) { document.getElementById('f-ayuda').style.display = 'none'; document.getElementById('f-nota-label').textContent = 'Novedades que se entregan (opcional)'; document.getElementById('nota').placeholder = ''; }
   document.getElementById('btn-enviar').disabled = false;
   document.getElementById('btn-enviar').textContent = texto ? '✔ Enviar reporte' : '✔ Enviar evidencia';
-  document.getElementById('nota').value = paq ? textoPaquetes((S.estado && S.estado.paquetes) || []) : '';
+  document.getElementById('nota').value = paq ? textoInformePaqueteria() : '';
   document.getElementById('archivo').value = ''; document.getElementById('galeria').value = '';
   pintarMiniaturas();
   pintarFijas(fij);
