@@ -216,7 +216,9 @@
       <div class="error" id="err-material"></div>
     </div>
     </details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.14 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
+    <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
+    <p class="mini centro">Consignas GECEM v3.15 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1093,7 +1095,7 @@ function tarjetaPend(it) {
   if (it.estado === 'fallida') txt = 'Se venció. Súbela de todos modos: quedará como "tarde".';
   else if (it.minutos <= it.tolerancia) txt = 'Tienes ' + (it.tolerancia - it.minutos) + ' min para que cuente a tiempo';
   else txt = 'Ya va tarde (' + it.minutos + ' min). Súbela ahora.';
-  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + horaFecha(it) + '</div></div>' +
     '<div class="contador" style="margin-top:8px">⏰ ' + txt + '</div>' +
     '<button class="btn rojo">' + accion(it, true) + '</button>';
   d.querySelector('button').onclick = function () { abrirFoto(it); };
@@ -1123,11 +1125,13 @@ function accion(it, ahora) {
   return (esTexto(it) ? '📝 Enviar reporte' : '📷 Subir foto') + (ahora ? ' ahora' : '');
 }
 // v3.3: la consigna se ve desde antes, pero solo se puede hacer a partir de su hora
+// v3.15: las consignas de anoche (antes del relevo) traen fecha de ayer
+function horaFecha(it) { return it.fecha && S.estado && it.fecha !== S.estado.hoy ? '<div class="mini">de anoche</div>' : ''; }
 function yaEsHora(it) { return esRelevo(it) || !(it.minutos < 0); }
 function tarjetaAbierta(it) {
   var d = document.createElement('div'); d.className = 'card abierta';
   var ya = yaEsHora(it);
-  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + '</div></div>' +
+  d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="inst">' + esc(it.instruccion) + '</div></div><div class="hora">' + esc(it.hora) + horaFecha(it) + '</div></div>' +
     (ya ? '<button class="btn">' + accion(it) + '</button>' : '<div class="mini" style="margin-top:8px;font-weight:700">⏳ Se puede hacer a partir de las ' + esc(it.hora) + ' (faltan ' + (-it.minutos) + ' min).</div>');
   var b = d.querySelector('button'); if (b) b.onclick = function () { abrirFoto(it); };
   return d;
@@ -1333,7 +1337,7 @@ function enviar() {
   var btn = document.getElementById('btn-enviar'); btn.disabled = true;
   cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
-    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.modoAgregar ? S.actual.fecha : undefined, nota: nota })
+    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota })
       .then(function (r) {
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
