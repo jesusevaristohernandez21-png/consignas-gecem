@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.15 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.16 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -506,6 +506,17 @@
         <button class="btn sec chico" onclick="probarWA('admin')">Probar aviso a mi WhatsApp</button>
         <button class="btn sec chico" onclick="cerrarTurnoAhora()">🔒 Cerrar ahora los días anteriores</button>
         <button class="btn sec chico" onclick="probarAlarma()">🔔 Probar la alarma en este celular</button><div class="mini">La alarma suena y vibra en el celular de caseta cada minuto mientras haya una consigna con la hora ya cumplida y sin hacer (con la app abierta). El guardia puede silenciarla 10 min.</div>
+      </div>
+      <!-- v3.16: puente de WhatsApp (envío automático al grupo) -->
+      <div class="card" id="card-puente">
+        <div class="titulo">🤖 Envío automático al grupo de WhatsApp</div>
+        <div class="mini">Un servidor de GECEM con el celular "GECEM Evidencias" publica solo en el grupo de la mesa directiva cada evidencia marcada "compartir al grupo". Cada caseta necesita el nombre exacto de su grupo (en Equipo → caseta).</div>
+        <div id="puente-estado" class="mini" style="margin:8px 0;font-weight:700"></div>
+        <label style="margin-top:6px"><input type="checkbox" class="sw" id="puente-activo"> Envío automático ACTIVO</label>
+        <label>Clave del puente (se pone en el servidor)</label><input id="puente-clave" readonly onclick="this.select()">
+        <div class="dos"><button class="btn sec chico" onclick="puente('clave_nueva')">🔑 Generar clave nueva</button><button class="btn sec chico" onclick="puente('reintentar')">↻ Reintentar fallidos</button></div>
+        <div id="puente-ultimos" class="mini"></div>
+        <div class="error" id="err-puente"></div>
       </div>
       <div class="card" id="card-admins">
         <div class="titulo">👤 Administradores</div>
@@ -1147,7 +1158,7 @@ function tarjetaHecha(it, fecha) {
   var conNota = it.nota && (esTexto(it) || String(it.nota).length > 40);
   d.innerHTML = '<div class="fila"><div><div class="titulo">' + esc(it.titulo) + '</div><div class="mini">' + (fecha ? esc(fecha) + ' · ' : '') + esc(it.guardia) + ' · ' + esc(String(it.subida || '').slice(11)) + (it.nota && !conNota ? ' · ' + esc(it.nota) : '') + '</div>' + etiquetaEstado(it.estado, !!fecha) + '</div></div>' +
     (conNota ? '<div style="margin-top:6px;white-space:pre-wrap">' + esc(it.nota) + '</div>' : '') +
-    (it.compartir_grupo && !it.compartido ? '<div class="aviso">Falta mandarla al grupo de la mesa directiva.</div>' : '') +
+    (it.compartir_grupo && !it.compartido ? (it.envio_grupo === 'pendiente' ? '<div class="mini" style="margin-top:6px">🤖 Enviándose sola al grupo…</div>' : it.envio_grupo === 'fallido' ? '<div class="aviso">⚠️ El envío automático falló. Mándala a mano al grupo.</div>' : '<div class="aviso">Falta mandarla al grupo de la mesa directiva.</div>') : '') +
     (it.compartido ? '<div class="mini" style="margin-top:6px">✔ Enviada al grupo</div>' : '') +
     ((it.fotos || []).length ? '<div class="minis">' + it.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '') +
     (it.estado === 'cumplida' || it.estado === 'tarde' ? '<div class="dos">' + (it.compartir_grupo ? '<button class="btn wa chico" data-a="wa">📲 WhatsApp' + ((it.fotos || []).length > 1 ? ' (' + it.fotos.length + ')' : '') + '</button>' : '') + '<button class="btn sec chico" data-a="mas">➕ Agregar foto</button></div>' : '');
@@ -1351,6 +1362,8 @@ function enviar() {
         document.getElementById('l-aviso-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
         document.getElementById('l-nombre-grupo').textContent = S.caseta.grupo || 'Mesa Directiva';
         document.getElementById('l-compartido').textContent = '';
+        // v3.16: si el puente la va a publicar solo, no hay que mandarla a mano
+        document.getElementById('l-aviso-grupo').innerHTML = r.auto_grupo ? '🤖 <b>Se está enviando sola al grupo de la mesa directiva.</b> No tienes que hacer nada; si en unos minutos no aparece, mándala a mano con el botón.' : 'Esta consigna la pide la mesa directiva. Mándala al grupo de WhatsApp <b id="l-nombre-grupo">' + esc(S.caseta.grupo || 'Mesa Directiva') + '</b>.';
         var conImagen = puedeCompartirImagen() && r.fotos.length > 0;
         document.getElementById('btn-imagen').style.display = conImagen ? 'block' : 'none';
         document.getElementById('btn-link').className = conImagen ? 'btn sec chico' : 'btn wa';
@@ -1422,6 +1435,7 @@ function cargarAdmin() {
       r.casetas.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.nombre + (String(c.activa) !== 'si' ? ' (inactiva)' : ''); s.appendChild(o); });
       if (prev && Array.prototype.some.call(s.options, function (o) { return o.value === prev; })) s.value = prev;
     });
+    cargarPuente();
     document.getElementById('j-wa').value = r.config.admin_whatsapp || '';
     document.getElementById('j-key').value = r.config.admin_callmebot_key || '';
     document.getElementById('j-grupo').value = r.config.nombre_grupo || '';
@@ -1687,6 +1701,7 @@ function pintarEquipo() {
       '<label>WhatsApp del celular de caseta (con +52)</label><input data-k="whatsapp" value="' + esc(c.whatsapp) + '">' +
       '<label>Apikey de CallMeBot de ese celular</label><input data-k="callmebot_key" value="' + esc(c.callmebot_key) + '">' +
       '<label>Usuario de Telegram del celular de caseta (para las llamadas)</label><input data-k="telegram" value="' + esc(c.telegram || '') + '" placeholder="@usuario o +52442...">' +
+      '<label>Nombre exacto del grupo de WhatsApp de la mesa directiva (envío automático)</label><input data-k="grupo_wa" value="' + esc(c.grupo_wa || '') + '">' +
       '<div class="mini">Para que entren las llamadas: instalar Telegram en ese celular, ponerle un @usuario y mandarle <b>/start</b> a <b>@CallMeBot_txtbot</b>. Si no tiene @usuario, aquí va el teléfono con +52.</div>' +
       '<div class="mini">Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
       '<label style="margin-top:10px"><input type="checkbox" class="sw" data-k="paqueteria"' + (String(c.paqueteria || 'si') !== 'no' ? ' checked' : '') + '> Esta caseta usa la sección de Paquetería</label>' +
@@ -1794,6 +1809,20 @@ function borrarDoc(d) {
 function volverDeExp() { expActual = null; ir('p-admin'); }
 
 // ---------- Administradores (v3.4) ----------
+// v3.16: estado y control del puente de WhatsApp
+function cargarPuente() { return puente(''); }
+function puente(accion, valor) {
+  err('err-puente', '');
+  return llamar('admin_puente', { token: S.adminToken, accion: accion, valor: valor }).then(function (r) {
+    var ch = document.getElementById('puente-activo'); ch.checked = !!r.activo;
+    ch.onchange = function () { puente('activar', ch.checked); };
+    document.getElementById('puente-clave').value = r.clave || '(toca "Generar clave nueva")';
+    var min = r.visto ? Math.round((Date.now() - new Date(r.visto.replace(' ', 'T')).getTime()) / 60000) : null;
+    var st = !r.activo ? '⚪ Apagado' : min === null ? '🔴 El servidor nunca se ha conectado' : min <= 2 ? '🟢 Servidor conectado (hace ' + min + ' min)' : '🔴 Servidor sin conexión desde hace ' + min + ' min';
+    document.getElementById('puente-estado').textContent = st + ' · pendientes: ' + r.pendientes + ' · fallidos: ' + r.fallidos + ' · enviados hoy: ' + r.enviados_hoy;
+    document.getElementById('puente-ultimos').innerHTML = (r.ultimos || []).map(function (u) { return '<div>' + esc(String(u.creado).slice(5)) + ' · ' + esc(u.grupo) + ' · ' + (u.estado === 'enviado' ? '✔' : u.estado === 'fallido' ? '✖ ' + esc(u.error || '') : '⏳') + '</div>'; }).join('');
+  }).catch(function (e) { err('err-puente', e.message); });
+}
 function cargarAdmins() {
   llamar('admin_admins', { token: S.adminToken }).then(function (r) {
     var el = document.getElementById('lista-admins'); el.innerHTML = '';
