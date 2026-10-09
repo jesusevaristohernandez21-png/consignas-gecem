@@ -216,7 +216,7 @@
       <div class="error" id="err-material"></div>
     </div>
     </details>
-    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.13 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
+    <p class="mini centro" style="margin-top:30px">Consignas GECEM v3.14 (instalable) · <a href="#" onclick="salir();return false">Cerrar sesión de la caseta</a></p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -695,7 +695,8 @@ AL.timer = setInterval(revisarAlarma, 20000);
 var ultimaVista = Date.now();
 document.addEventListener('visibilitychange', function () {
   if (document.hidden) { ultimaVista = Date.now(); return; }
-  if (Date.now() - ultimaVista > 5 * 60000 && S.token && document.getElementById('p-inicio').classList.contains('activa')) { tabInicio('hoy'); cargarEstado(true); }
+  // v3.14: actualiza en segundo plano (ya hay algo pintado), sin tapar la pantalla
+  if (Date.now() - ultimaVista > 5 * 60000 && S.token && document.getElementById('p-inicio').classList.contains('activa')) { tabInicio('hoy'); cargarEstado(); }
 });
 function cargarEstado(manual, arranque) {
   if (manual) cargando(true, arranque ? 'Cargando…' : 'Actualizando…');
