@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.16 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.17 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1161,7 +1161,7 @@ function tarjetaHecha(it, fecha) {
     (it.compartir_grupo && !it.compartido ? (it.envio_grupo === 'pendiente' ? '<div class="mini" style="margin-top:6px">🤖 Enviándose sola al grupo…</div>' : it.envio_grupo === 'fallido' ? '<div class="aviso">⚠️ El envío automático falló. Mándala a mano al grupo.</div>' : '<div class="aviso">Falta mandarla al grupo de la mesa directiva.</div>') : '') +
     (it.compartido ? '<div class="mini" style="margin-top:6px">✔ Enviada al grupo</div>' : '') +
     ((it.fotos || []).length ? '<div class="minis">' + it.fotos.map(function (f) { return '<div class="mini-f"><a href="' + esc(f.ver) + '" target="_blank"><img src="' + esc('https://drive.google.com/thumbnail?id=' + f.id + '&sz=w300') + '" alt="" loading="lazy"></a></div>'; }).join('') + '</div>' : '') +
-    (it.estado === 'cumplida' || it.estado === 'tarde' ? '<div class="dos">' + (it.compartir_grupo ? '<button class="btn wa chico" data-a="wa">📲 WhatsApp' + ((it.fotos || []).length > 1 ? ' (' + it.fotos.length + ')' : '') + '</button>' : '') + '<button class="btn sec chico" data-a="mas">➕ Agregar foto</button></div>' : '');
+    (it.estado === 'cumplida' || it.estado === 'tarde' ? '<div class="dos">' + (it.compartir_grupo && it.envio_grupo !== 'pendiente' ? '<button class="btn wa chico" data-a="wa">📲 WhatsApp' + ((it.fotos || []).length > 1 ? ' (' + it.fotos.length + ')' : '') + '</button>' : '') + '<button class="btn sec chico" data-a="mas">➕ Agregar foto</button></div>' : '');
   var bw = d.querySelector('[data-a="wa"]'), bm = d.querySelector('[data-a="mas"]');
   if (bw) bw.onclick = function () { compartirEvidencia(it, fecha || (S.estado && S.estado.hoy)); };
   if (bm) bm.onclick = function () { abrirFoto(Object.assign({}, it, { fecha: fecha || (S.estado && S.estado.hoy) }), true); };
@@ -1364,6 +1364,10 @@ function enviar() {
         document.getElementById('l-compartido').textContent = '';
         // v3.16: si el puente la va a publicar solo, no hay que mandarla a mano
         document.getElementById('l-aviso-grupo').innerHTML = r.auto_grupo ? '🤖 <b>Se está enviando sola al grupo de la mesa directiva.</b> No tienes que hacer nada; si en unos minutos no aparece, mándala a mano con el botón.' : 'Esta consigna la pide la mesa directiva. Mándala al grupo de WhatsApp <b id="l-nombre-grupo">' + esc(S.caseta.grupo || 'Mesa Directiva') + '</b>.';
+        // v3.17: con envío automático no se muestran los botones de compartir (el guardia no tiene que hacer nada)
+        document.getElementById('btn-imagen').style.display = r.auto_grupo ? 'none' : (puedeCompartirImagen() && r.fotos.length > 0 ? 'block' : 'none');
+        document.getElementById('btn-link').style.display = r.auto_grupo ? 'none' : '';
+        document.getElementById('l-ayuda-compartir').style.display = r.auto_grupo ? 'none' : '';
         var conImagen = puedeCompartirImagen() && r.fotos.length > 0;
         document.getElementById('btn-imagen').style.display = conImagen ? 'block' : 'none';
         document.getElementById('btn-link').className = conImagen ? 'btn sec chico' : 'btn wa';
