@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.17 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.19 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1705,11 +1705,13 @@ function pintarEquipo() {
       '<label>WhatsApp del celular de caseta (con +52)</label><input data-k="whatsapp" value="' + esc(c.whatsapp) + '">' +
       '<label>Apikey de CallMeBot de ese celular</label><input data-k="callmebot_key" value="' + esc(c.callmebot_key) + '">' +
       '<label>Usuario de Telegram del celular de caseta (para las llamadas)</label><input data-k="telegram" value="' + esc(c.telegram || '') + '" placeholder="@usuario o +52442...">' +
+      '<label>🚨 Canal de alarma (app ntfy en el celular de caseta)</label><input data-k="ntfy" autocapitalize="none" value="' + esc(c.ntfy || '') + '">' +
+      '<div class="mini">En el celular de caseta: instalar <b>ntfy</b> de Play Store → <b>+</b> → escribir este canal → Suscribir. Dentro del canal (⋮ → Ajustes): prioridad mínima <b>Urgente</b>, <b>Alertas insistentes</b> y <b>Ignorar No molestar</b>. En Android quitarle el ahorro de batería a ntfy. No compartas el canal fuera de la caseta.</div>' +
       '<label>Nombre exacto del grupo de WhatsApp de la mesa directiva (envío automático)</label><input data-k="grupo_wa" value="' + esc(c.grupo_wa || '') + '">' +
       '<div class="mini">Para que entren las llamadas: instalar Telegram en ese celular, ponerle un @usuario y mandarle <b>/start</b> a <b>@CallMeBot_txtbot</b>. Si no tiene @usuario, aquí va el teléfono con +52.</div>' +
       '<div class="mini">Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
       '<label style="margin-top:10px"><input type="checkbox" class="sw" data-k="paqueteria"' + (String(c.paqueteria || 'si') !== 'no' ? ' checked' : '') + '> Esta caseta usa la sección de Paquetería</label>' +
-      '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button>';
+      '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button><button class="btn sec chico">🚨 Probar alarma (ntfy)</button>';
     var bs = d.querySelectorAll('button');
     bs[0].onclick = function () {
       var o = { id: c.id, nombre: c.nombre, activa: String(c.activa) === 'si' }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.type === 'checkbox' ? i.checked : i.value.trim(); });
@@ -1718,6 +1720,7 @@ function pintarEquipo() {
     };
     bs[1].onclick = function () { probarWA(c.id); };
     bs[2].onclick = function () { probarLlamada(c.id); };
+    bs[3].onclick = function () { probarAlarma(c.id); };
     lc.appendChild(d);
   });
 }
@@ -1742,6 +1745,11 @@ function probarWA(destino) {
 function probarLlamada(casetaId) {
   cargando(true, 'Llamando…');
   llamar('admin_probar_llamada', { token: S.adminToken, caseta_id: casetaId }).then(function (r) { alert(r.enviado ? 'Llamada enviada. El celular de caseta debe estar sonando en Telegram.' : 'No se pudo llamar: revisa el usuario de Telegram y que ese celular le haya mandado /start a @CallMeBot_txtbot.'); })
+    .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
+}
+function probarAlarma(casetaId) {
+  cargando(true, 'Mandando alarma…');
+  llamar('admin_probar_alarma', { token: S.adminToken, caseta_id: casetaId }).then(function (r) { alert(r.enviado ? 'Alarma enviada. El celular de caseta debe estar sonando (app ntfy).' : 'No se pudo mandar la alarma (mira LogApp en la hoja).'); })
     .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
 }
 function cerrarTurnoAhora() {
