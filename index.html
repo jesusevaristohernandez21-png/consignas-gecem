@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.19 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.20 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -496,11 +496,22 @@
         <label>Hora del cambio de turno (corte)</label><input id="j-corte" type="number" min="0" max="23" value="9"><div class="mini">A esa hora, lo que quedó pendiente de días anteriores se cierra como NO CUMPLIDA del turno que le tocaba y deja de aparecerle al guardia que entra.</div>
         <label>Usuario del administrador</label><input id="j-adm-usuario" autocapitalize="none" placeholder="gecem">
         <label>Contraseña del administrador</label><input id="j-adm-clave" type="text" placeholder="Gecem2026"><div class="mini">Con estos dos entras al panel de administrador. Cámbialos aquí cuando quieras.</div>
-        <label style="margin-top:14px">Llamadas de voz a la caseta (Telegram)</label>
+        <label style="margin-top:14px">📞 Llamadas de voz al celular de caseta</label>
         <label class="mini" style="display:flex;align-items:center;gap:8px;font-weight:normal"><input id="j-llam-on" type="checkbox" style="width:auto;margin:0"> Llamar a la caseta cuando no cumplen una consigna</label>
         <div class="dos">
-          <div><label>Llamar a partir del aviso #</label><input id="j-llam-desde" type="number" min="1" max="10" value="3"><div class="mini">Ej. 3 = primero 2 recordatorios por WhatsApp; al tercero ya llama.</div></div>
+          <div><label>Llamar si a los (min) no han cumplido</label><input id="j-llam-tras" type="number" min="1" max="180" value="30"><div class="mini">A la hora solo avisa (WhatsApp + alarma). Si pasan estos minutos sin evidencia, llama.</div></div>
+          <div><label>Máximo de llamadas por consigna</label><input id="j-llam-max" type="number" min="1" max="10" value="2"></div>
           <div><label>Volver a llamar cada (min)</label><input id="j-llam-cada" type="number" min="1" max="120" value="15"><div class="mini">Mientras siga pendiente y no se venza.</div></div>
+        </div>
+        <label style="margin-top:14px">☎️ Twilio (WhatsApp oficial y llamadas) <span id="j-tw-estado" class="mini"></span></label>
+        <div class="mini">Si llenas esto, los avisos por WhatsApp y las llamadas salen por Twilio. Si lo dejas vacío, sigue CallMeBot. Datos en twilio.com → Console.</div>
+        <div class="dos">
+          <div><label>Account SID (AC…)</label><input id="j-tw-sid" autocapitalize="none" placeholder="AC..."></div>
+          <div><label>Auth Token</label><input id="j-tw-token" type="password" autocapitalize="none"></div>
+          <div><label>Número para llamar (+1… o +52…)</label><input id="j-tw-tel" placeholder="+1..."></div>
+          <div><label>Número de WhatsApp de GECEM (+52…)</label><input id="j-tw-wa" placeholder="+52442..."></div>
+          <div><label>Plantilla aprobada (HX…)</label><input id="j-tw-plantilla" autocapitalize="none" placeholder="HX..."><div class="mini">Plantilla con {{1}} = texto y {{2}} = link. Sin plantilla, WhatsApp solo entrega si el guardia escribió en las últimas 24 h.</div></div>
+          <div><label>Messaging Service (MG…, opcional)</label><input id="j-tw-msvc" autocapitalize="none" placeholder="MG..."></div>
         </div>
         <button class="btn chico" onclick="guardarAjustes()">Guardar ajustes</button>
         <button class="btn sec chico" onclick="probarWA('admin')">Probar aviso a mi WhatsApp</button>
@@ -1448,8 +1459,11 @@ function cargarAdmin() {
     document.getElementById('j-adm-usuario').value = r.config.usuario_admin || 'gecem';
     document.getElementById('j-adm-clave').value = r.config.clave_admin || '';
     document.getElementById('j-llam-on').checked = (r.config.llamadas_activas || 'si') === 'si';
-    document.getElementById('j-llam-desde').value = r.config.llamar_desde_aviso || 3;
+    document.getElementById('j-llam-tras').value = r.config.llamar_tras_min || 30;
+    document.getElementById('j-llam-max').value = r.config.llamar_max || 2;
     document.getElementById('j-llam-cada').value = r.config.llamar_cada_min || 15;
+    ['sid', 'token', 'tel', 'wa', 'plantilla', 'msvc'].forEach(function (k) { document.getElementById('j-tw-' + k).value = r.config['twilio_' + k] || ''; });
+    document.getElementById('j-tw-estado').textContent = (r.config.twilio_sid && r.config.twilio_token) ? '— configurado ✅' : '— sin configurar (se usa CallMeBot)';
     document.getElementById('j-url').textContent = r.url || URL_APP;
     pintarConsignas(); pintarFijasAdmin(); pintarProtocolosAdmin(); pintarEquipo();
     var hoy = new Date(), d7 = new Date(); d7.setDate(hoy.getDate() - 6);
@@ -1704,12 +1718,13 @@ function pintarEquipo() {
         '<label>Contrase\u00f1a</label><input data-k="clave" value="' + esc(c.clave) + '">' +
       '<label>WhatsApp del celular de caseta (con +52)</label><input data-k="whatsapp" value="' + esc(c.whatsapp) + '">' +
       '<label>Apikey de CallMeBot de ese celular</label><input data-k="callmebot_key" value="' + esc(c.callmebot_key) + '">' +
-      '<label>Usuario de Telegram del celular de caseta (para las llamadas)</label><input data-k="telegram" value="' + esc(c.telegram || '') + '" placeholder="@usuario o +52442...">' +
+      '<label>📞 Teléfono del celular de caseta (para las llamadas, con +52)</label><input data-k="telefono" value="' + esc(c.telefono || '') + '" placeholder="+52442...">' +
+      '<label>Usuario de Telegram (solo si no hay Twilio; llamadas por CallMeBot)</label><input data-k="telegram" value="' + esc(c.telegram || '') + '" placeholder="@usuario">' +
       '<label>🚨 Canal de alarma (app ntfy en el celular de caseta)</label><input data-k="ntfy" autocapitalize="none" value="' + esc(c.ntfy || '') + '">' +
       '<div class="mini">En el celular de caseta: instalar <b>ntfy</b> de Play Store → <b>+</b> → escribir este canal → Suscribir. Dentro del canal (⋮ → Ajustes): prioridad mínima <b>Urgente</b>, <b>Alertas insistentes</b> y <b>Ignorar No molestar</b>. En Android quitarle el ahorro de batería a ntfy. No compartas el canal fuera de la caseta.</div>' +
       '<label>Nombre exacto del grupo de WhatsApp de la mesa directiva (envío automático)</label><input data-k="grupo_wa" value="' + esc(c.grupo_wa || '') + '">' +
-      '<div class="mini">Para que entren las llamadas: instalar Telegram en ese celular, ponerle un @usuario y mandarle <b>/start</b> a <b>@CallMeBot_txtbot</b>. Si no tiene @usuario, aquí va el teléfono con +52.</div>' +
-      '<div class="mini">Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
+      '<div class="mini">Con Twilio configurado (Ajustes), los avisos de WhatsApp y las llamadas salen por Twilio y la apikey de CallMeBot ya no se usa.</div>' +
+      '<div class="mini">Apikey de CallMeBot (solo sin Twilio). Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
       '<label style="margin-top:10px"><input type="checkbox" class="sw" data-k="paqueteria"' + (String(c.paqueteria || 'si') !== 'no' ? ' checked' : '') + '> Esta caseta usa la sección de Paquetería</label>' +
       '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button><button class="btn sec chico">🚨 Probar alarma (ntfy)</button>';
     var bs = d.querySelectorAll('button');
@@ -1720,7 +1735,7 @@ function pintarEquipo() {
     };
     bs[1].onclick = function () { probarWA(c.id); };
     bs[2].onclick = function () { probarLlamada(c.id); };
-    bs[3].onclick = function () { probarAlarma(c.id); };
+    bs[3].onclick = function () { probarNtfy(c.id); };
     lc.appendChild(d);
   });
 }
@@ -1744,10 +1759,10 @@ function probarWA(destino) {
 }
 function probarLlamada(casetaId) {
   cargando(true, 'Llamando…');
-  llamar('admin_probar_llamada', { token: S.adminToken, caseta_id: casetaId }).then(function (r) { alert(r.enviado ? 'Llamada enviada. El celular de caseta debe estar sonando en Telegram.' : 'No se pudo llamar: revisa el usuario de Telegram y que ese celular le haya mandado /start a @CallMeBot_txtbot.'); })
+  llamar('admin_probar_llamada', { token: S.adminToken, caseta_id: casetaId }).then(function (r) { alert(r.enviado ? 'Llamada enviada. El celular de caseta debe estar sonando.' : 'No se pudo llamar. Revisa el teléfono de la caseta y los datos de Twilio en Ajustes (o LogApp en la hoja).'); })
     .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
 }
-function probarAlarma(casetaId) {
+function probarNtfy(casetaId) {
   cargando(true, 'Mandando alarma…');
   llamar('admin_probar_alarma', { token: S.adminToken, caseta_id: casetaId }).then(function (r) { alert(r.enviado ? 'Alarma enviada. El celular de caseta debe estar sonando (app ntfy).' : 'No se pudo mandar la alarma (mira LogApp en la hoja).'); })
     .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
@@ -1862,10 +1877,13 @@ function guardarAdminNuevo() {
 function guardarAjustes() {
   var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, hora_cambio_turno: document.getElementById('j-cambio').value, tolerancia_entrada_min: document.getElementById('j-tol').value, equipo_turno: document.getElementById('j-equipo').value.trim(),
     usuario_admin: document.getElementById('j-adm-usuario').value.trim(), clave_admin: document.getElementById('j-adm-clave').value.trim(),
-    llamadas_activas: document.getElementById('j-llam-on').checked ? 'si' : 'no', llamar_desde_aviso: document.getElementById('j-llam-desde').value, llamar_cada_min: document.getElementById('j-llam-cada').value };
+    llamadas_activas: document.getElementById('j-llam-on').checked ? 'si' : 'no', llamar_tras_min: document.getElementById('j-llam-tras').value, llamar_max: document.getElementById('j-llam-max').value, llamar_cada_min: document.getElementById('j-llam-cada').value };
+  ['sid', 'token', 'tel', 'wa', 'plantilla', 'msvc'].forEach(function (k) { cfg['twilio_' + k] = document.getElementById('j-tw-' + k).value.trim(); });
+  if (cfg.twilio_sid && !/^AC[0-9a-fA-F]{32}$/.test(cfg.twilio_sid)) return err('err-aj', 'El Account SID de Twilio empieza con AC y tiene 34 caracteres.');
+  if (cfg.twilio_plantilla && !/^HX[0-9a-fA-F]{32}$/.test(cfg.twilio_plantilla)) return err('err-aj', 'La plantilla de Twilio empieza con HX y tiene 34 caracteres.');
   if (!cfg.usuario_admin) return err('err-aj', 'El usuario del administrador no puede quedar vacío.');
   if (!cfg.clave_admin) return err('err-aj', 'La contraseña del administrador no puede quedar vacía.');
-  if (+cfg.llamar_desde_aviso < 1) return err('err-aj', 'El aviso a partir del cual se llama debe ser 1 o más.');
+  if (+cfg.llamar_tras_min < 1 || +cfg.llamar_max < 1) return err('err-aj', 'Los minutos para llamar y el máximo de llamadas deben ser 1 o más.');
   if (+cfg.llamar_cada_min < 1) return err('err-aj', 'Los minutos entre llamadas deben ser 1 o más.');
   cargando(true, 'Guardando…');
   llamar('admin_config', { token: S.adminToken, config: cfg }).then(cargarAdmin).then(function () { err('err-aj', ''); alert('Guardado.'); }).catch(function (e) { err('err-aj', e.message); }).finally(function () { cargando(false); });
