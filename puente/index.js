@@ -36,7 +36,7 @@ async function api(accion, params) {
 // ---------- WhatsApp ----------
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: DATOS }),
-  puppeteer: { headless: true, executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--no-zygote', '--single-process'] }
+  puppeteer: { headless: true, executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--disable-crash-reporter', '--disable-extensions'] }
 });
 client.on('qr', qr => { estado.qr = qr; estado.listo = false; log('QR nuevo: abre http://<ip>:' + PORT + '/qr?k=... y escanéalo con el celular GECEM Evidencias'); });
 client.on('ready', async () => { estado.listo = true; estado.qr = null; log('WhatsApp conectado.'); await cargarGrupos(); });
@@ -99,7 +99,17 @@ http.createServer(async (req, res) => {
   if (u.searchParams.get('k') !== PUENTE_KEY) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Falta la clave (?k=...)'); }
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   let cuerpo;
-  if (u.pathname === '/log') {
+  if (u.pathname === '/actualizar') {
+    // v1.2: baja la última versión de index.js del repositorio y se reinicia (systemd lo levanta solo)
+    try {
+      const r = await fetch('https://raw.githubusercontent.com/jesusevaristohernandez21-png/consignas-gecem/main/puente/index.js?t=' + Date.now());
+      const txt = await r.text();
+      if (!r.ok || txt.indexOf('whatsapp-web.js') < 0) throw new Error('descarga inválida ' + r.status);
+      fs.writeFileSync(__filename, txt);
+      cuerpo = '<p>Actualizado (' + txt.length + ' bytes). Reiniciando en 2 s…</p><meta http-equiv="refresh" content="8;url=/?k=' + PUENTE_KEY + '">';
+      setTimeout(() => process.exit(0), 2000);
+    } catch (e) { cuerpo = '<p style="color:#b00">No se pudo actualizar: ' + e.message + '</p>'; }
+  } else if (u.pathname === '/log') {
     // v1.1: últimas líneas del registro, para diagnosticar sin entrar por SSH
     let txt = '';
     try { txt += '--- instalar.log ---\n' + require('child_process').execSync('tail -n 40 /root/instalar.log 2>/dev/null || true').toString(); } catch (e) { txt += e.message; }
