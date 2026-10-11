@@ -99,7 +99,13 @@ http.createServer(async (req, res) => {
   if (u.searchParams.get('k') !== PUENTE_KEY) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Falta la clave (?k=...)'); }
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   let cuerpo;
-  if (u.pathname === '/qr' && estado.qr) {
+  if (u.pathname === '/log') {
+    // v1.1: últimas líneas del registro, para diagnosticar sin entrar por SSH
+    let txt = '';
+    try { txt += '--- instalar.log ---\n' + require('child_process').execSync('tail -n 40 /root/instalar.log 2>/dev/null || true').toString(); } catch (e) { txt += e.message; }
+    try { txt += '\n--- servicio ---\n' + require('child_process').execSync('journalctl -u puente-gecem -n 60 --no-pager 2>/dev/null || true').toString(); } catch (e) { txt += e.message; }
+    cuerpo = '<pre style="white-space:pre-wrap;font-size:12px">' + txt.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) + '</pre>';
+  } else if (u.pathname === '/qr' && estado.qr) {
     const img = await QRCode.toDataURL(estado.qr, { width: 320 });
     cuerpo = '<h2>Escanea con el celular GECEM Evidencias</h2><p>WhatsApp → ⋮ → Dispositivos vinculados → Vincular un dispositivo</p><img src="' + img + '"><p>La página se actualiza sola cada 20 s.</p><meta http-equiv="refresh" content="20">';
   } else {
@@ -111,6 +117,8 @@ http.createServer(async (req, res) => {
   res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:sans-serif;max-width:480px;margin:20px auto;padding:0 12px">' + cuerpo + '</body>');
 }).listen(PORT, () => log('Página de estado/QR en el puerto ' + PORT));
 
-client.initialize().catch(e => log('init:', e.message));
+// v1.1: si Chrome no arranca, el error se ve en la página de estado y se reintenta cada 60 s
+function iniciar() { client.initialize().catch(e => { estado.ultimoError = 'init: ' + e.message; log('init:', e.message); setTimeout(iniciar, 60000); }); }
+iniciar();
 setInterval(ciclo, CADA_MS);
 setTimeout(ciclo, 10000);

@@ -6,7 +6,11 @@ EXEC_URL="$1"; PUENTE_KEY="$2"
 if [ -z "$EXEC_URL" ] || [ -z "$PUENTE_KEY" ]; then echo "Uso: bash instalar.sh URL_EXEC CLAVE"; exit 1; fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl ca-certificates gnupg chromium-browser 2>/dev/null || apt-get install -y curl ca-certificates gnupg chromium
+apt-get install -y curl ca-certificates gnupg fonts-liberation
+# Google Chrome (en Ubuntu 22.04/24.04 el "chromium" de apt es un snap y no arranca como servicio)
+if ! command -v google-chrome-stable >/dev/null; then
+  curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && apt-get install -y /tmp/chrome.deb || echo "AVISO: no se pudo instalar Google Chrome; se usará el Chromium de puppeteer"
+fi
 # Node 20
 if ! command -v node >/dev/null || [ "$(node -v | cut -c2-3)" -lt 20 ]; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -19,7 +23,10 @@ BASE="https://raw.githubusercontent.com/jesusevaristohernandez21-png/consignas-g
 curl -fsSL "$BASE/package.json" -o package.json
 curl -fsSL "$BASE/index.js" -o index.js
 npm install --omit=dev 2>&1 | tail -2
-CHROME=$(command -v chromium-browser || command -v chromium || true)
+CHROME=$(command -v google-chrome-stable || true)
+# si el binario no arranca, se deja vacío y puppeteer usa su propio Chromium
+if [ -n "$CHROME" ] && ! "$CHROME" --version >/dev/null 2>&1; then CHROME=""; fi
+echo "Chrome: ${CHROME:-(puppeteer)}" 
 cat > /etc/puente-gecem.env <<ENV
 EXEC_URL=$EXEC_URL
 PUENTE_KEY=$PUENTE_KEY
