@@ -1,5 +1,5 @@
 // ============================================================
-//  PUENTE WHATSAPP — Consignas GECEM + Operación GECEM (v1.5)
+//  PUENTE WHATSAPP — Consignas GECEM + Operación GECEM (v1.6)
 //  Corre en un servidor (VPS). Usa el celular "GECEM Evidencias" (WhatsApp Web).
 //  Cada 30 s pregunta a la app qué evidencias faltan por publicar, manda la(s) foto(s)
 //  con el texto al grupo de la mesa directiva y le avisa a la app que ya quedó.
@@ -69,7 +69,13 @@ client.on('message', async msg => {
     if (!/^\d{10,15}$/.test(num)) { log('Mensaje sin número reconocible:', from); return; }
     const tipo = msg.type === 'chat' ? 'chat' : (msg.type === 'ptt' || msg.type === 'audio') ? 'audio' : msg.type === 'image' ? 'imagen' : 'otro';
     const texto = msg.body || (tipo === 'imagen' ? '(foto)' : tipo === 'audio' ? '(audio)' : '(' + msg.type + ')');
-    await opApi('entrada', { msg_id: (msg.id && (msg.id._serialized || msg.id.$1)) || null, wa: num, nombre, tipo, texto });
+    const extra = {};
+    if (tipo === 'audio') {
+      // v1.6: la nota de voz se manda a la app (base64) para que la transcriba
+      try { const m = await msg.downloadMedia(); if (m && m.data && m.data.length < 6 * 1024 * 1024) { extra.audio_b64 = m.data; extra.mime = m.mimetype || 'audio/ogg'; } }
+      catch (e) { log('No pude bajar el audio:', e.message); }
+    }
+    await opApi('entrada', Object.assign({ msg_id: (msg.id && (msg.id._serialized || msg.id.$1)) || null, wa: num, nombre, tipo, texto }, extra));
     opEstado.recibidos++; log('Operación <- ' + (nombre || num) + ': ' + texto.slice(0, 60));
   } catch (e) { opEstado.errores++; opEstado.ultimoError = 'entrada: ' + e.message; log('entrada:', e.message); }
 });
