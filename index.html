@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.20 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.22 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -416,7 +416,7 @@
         <label>Título</label><input id="c-titulo">
         <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3"></textarea>
         <label>Tipo de evidencia</label>
-        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option></select>
+        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option><option value="aviso">Solo recordatorio (avisa a la hora, sin evidencia; p. ej. recorridos que se registran en otra app)</option></select>
         <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
         <label>Hora del aviso (24 h)</label><input id="c-hora" type="time">
         <label>Días</label>
@@ -499,8 +499,10 @@
         <label style="margin-top:14px">📞 Llamadas de voz al celular de caseta</label>
         <label class="mini" style="display:flex;align-items:center;gap:8px;font-weight:normal"><input id="j-llam-on" type="checkbox" style="width:auto;margin:0"> Llamar a la caseta cuando no cumplen una consigna</label>
         <div class="dos">
+          <div><label>Alarma previa (minutos antes, separados por coma)</label><input id="j-preaviso" placeholder="15,5"><div class="mini">Suena en el celular de caseta (app ntfy) esos minutos antes de la hora. Sin costo.</div></div>
           <div><label>Llamar si a los (min) no han cumplido</label><input id="j-llam-tras" type="number" min="1" max="180" value="30"><div class="mini">A la hora solo avisa (WhatsApp + alarma). Si pasan estos minutos sin evidencia, llama.</div></div>
           <div><label>Máximo de llamadas por consigna</label><input id="j-llam-max" type="number" min="1" max="10" value="2"></div>
+          <div><label class="mini" style="display:flex;align-items:center;gap:8px;font-weight:normal"><input id="j-llam-aviso" type="checkbox" style="width:auto;margin:0"> Llamar también en las de "solo recordatorio"</label><div class="mini">Cada llamada cuesta (~$0.05 USD). Sin esto, esas consignas solo suenan en la app ntfy y llegan por WhatsApp.</div></div>
           <div><label>Volver a llamar cada (min)</label><input id="j-llam-cada" type="number" min="1" max="120" value="15"><div class="mini">Mientras siga pendiente y no se venza.</div></div>
         </div>
         <label style="margin-top:14px">☎️ Twilio (WhatsApp oficial y llamadas) <span id="j-tw-estado" class="mini"></span></label>
@@ -1459,8 +1461,10 @@ function cargarAdmin() {
     document.getElementById('j-adm-usuario').value = r.config.usuario_admin || 'gecem';
     document.getElementById('j-adm-clave').value = r.config.clave_admin || '';
     document.getElementById('j-llam-on').checked = (r.config.llamadas_activas || 'si') === 'si';
+    document.getElementById('j-preaviso').value = r.config.preaviso_min === undefined ? '15,5' : r.config.preaviso_min;
     document.getElementById('j-llam-tras').value = r.config.llamar_tras_min || 30;
     document.getElementById('j-llam-max').value = r.config.llamar_max || 2;
+    document.getElementById('j-llam-aviso').checked = r.config.llamar_en_avisos === 'si';
     document.getElementById('j-llam-cada').value = r.config.llamar_cada_min || 15;
     ['sid', 'token', 'tel', 'wa', 'plantilla', 'msvc'].forEach(function (k) { document.getElementById('j-tw-' + k).value = r.config['twilio_' + k] || ''; });
     document.getElementById('j-tw-estado').textContent = (r.config.twilio_sid && r.config.twilio_token) ? '— configurado ✅' : '— sin configurar (se usa CallMeBot)';
@@ -1516,7 +1520,7 @@ function pintarConsignas() {
   if (!cs.length) el.innerHTML = '<div class="lista-item mini">Sin consignas en esta caseta. Agrega la primera.</div>';
   cs.forEach(function (k) {
     var d = document.createElement('div'); d.className = 'lista-item';
-    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : String(k.tipo) === 'protocolo' ? ' · 📖 protocolos' : String(k.tipo) === 'paqueteria' ? ' · 📦 paquetería' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
+    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : String(k.tipo) === 'protocolo' ? ' · 📖 protocolos' : String(k.tipo) === 'paqueteria' ? ' · 📦 paquetería' : String(k.tipo) === 'aviso' ? ' · ⏰ solo recordatorio' : String(k.tipo) === 'relevo' ? ' · 🔄 relevo' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
     d.onclick = function () { editarConsigna(k); }; el.appendChild(d);
   });
 }
@@ -1528,7 +1532,7 @@ function editarConsigna(k) {
   document.getElementById('c-caseta').value = k ? k.caseta_id : casetaCons();
   document.getElementById('c-titulo').value = k ? k.titulo : '';
   document.getElementById('c-inst').value = k ? k.instruccion : '';
-  document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo','paqueteria'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
+  document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo','paqueteria','relevo','aviso'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
   document.getElementById('c-hora').value = k ? String(k.hora) : '';
   document.getElementById('c-tol').value = k ? k.tolerancia_min : 30;
   document.getElementById('c-lim').value = k ? k.limite_min : 120;
@@ -1877,7 +1881,7 @@ function guardarAdminNuevo() {
 function guardarAjustes() {
   var cfg = { admin_whatsapp: document.getElementById('j-wa').value.trim(), admin_callmebot_key: document.getElementById('j-key').value.trim(), nombre_grupo: document.getElementById('j-grupo').value.trim(), hora_reporte: document.getElementById('j-hora').value, hora_corte: document.getElementById('j-corte').value, hora_cambio_turno: document.getElementById('j-cambio').value, tolerancia_entrada_min: document.getElementById('j-tol').value, equipo_turno: document.getElementById('j-equipo').value.trim(),
     usuario_admin: document.getElementById('j-adm-usuario').value.trim(), clave_admin: document.getElementById('j-adm-clave').value.trim(),
-    llamadas_activas: document.getElementById('j-llam-on').checked ? 'si' : 'no', llamar_tras_min: document.getElementById('j-llam-tras').value, llamar_max: document.getElementById('j-llam-max').value, llamar_cada_min: document.getElementById('j-llam-cada').value };
+    llamadas_activas: document.getElementById('j-llam-on').checked ? 'si' : 'no', preaviso_min: document.getElementById('j-preaviso').value.replace(/[^\d,]/g, ''), llamar_tras_min: document.getElementById('j-llam-tras').value, llamar_max: document.getElementById('j-llam-max').value, llamar_en_avisos: document.getElementById('j-llam-aviso').checked ? 'si' : 'no', llamar_cada_min: document.getElementById('j-llam-cada').value };
   ['sid', 'token', 'tel', 'wa', 'plantilla', 'msvc'].forEach(function (k) { cfg['twilio_' + k] = document.getElementById('j-tw-' + k).value.trim(); });
   if (cfg.twilio_sid && !/^AC[0-9a-fA-F]{32}$/.test(cfg.twilio_sid)) return err('err-aj', 'El Account SID de Twilio empieza con AC y tiene 34 caracteres.');
   if (cfg.twilio_plantilla && !/^HX[0-9a-fA-F]{32}$/.test(cfg.twilio_plantilla)) return err('err-aj', 'La plantilla de Twilio empieza con HX y tiene 34 caracteres.');
