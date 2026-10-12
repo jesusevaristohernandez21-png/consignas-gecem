@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.26 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.27 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1806,7 +1806,7 @@ function pintarEquipo() {
       '<label>🚨 Canal de alarma (app ntfy en el celular de caseta)</label><input data-k="ntfy" autocapitalize="none" value="' + esc(c.ntfy || '') + '">' +
       '<div class="mini">En el celular de caseta: instalar <b>ntfy</b> de Play Store → <b>+</b> → escribir este canal → Suscribir. Dentro del canal (⋮ → Ajustes): prioridad mínima <b>Urgente</b>, <b>Alertas insistentes</b> y <b>Ignorar No molestar</b>. En Android quitarle el ahorro de batería a ntfy. No compartas el canal fuera de la caseta.</div>' +
       '<label>Nombre exacto del grupo de WhatsApp de la mesa directiva (envío automático)</label><input data-k="grupo_wa" value="' + esc(c.grupo_wa || '') + '">' +
-      '<div class="mini">Con Twilio configurado (Ajustes), los avisos de WhatsApp y las llamadas salen por Twilio y la apikey de CallMeBot ya no se usa.</div>' +
+      '<div class="mini">Con el puente de WhatsApp activo, los avisos al celular de caseta salen del chip GECEM (solo hace falta el número de arriba; la apikey de CallMeBot y el WhatsApp de Twilio ya no se usan). Twilio queda para las llamadas.</div>' +
       '<div class="mini">Apikey de CallMeBot (solo sin Twilio). Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
       '<label style="margin-top:10px"><input type="checkbox" class="sw" data-k="paqueteria"' + (String(c.paqueteria || 'si') !== 'no' ? ' checked' : '') + '> Esta caseta usa la sección de Paquetería</label>' +
       '<label>📦 Hora del informe automático de paquetería al grupo (vacío = apagado)</label><input data-k="informe_paq" value="' + esc(c.informe_paq || '') + '" placeholder="22:00" style="max-width:120px">' +
