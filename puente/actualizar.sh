@@ -20,7 +20,7 @@ for f in generar_cotizacion_gecem.py buscar_imagen.py correr.py logo_gecem.jpeg 
   curl -fsSL "$BASE/cotizador/$f?t=$(date +%s)" -o "cotizador/$f"
 done
 curl -fsSL "$BASE/instalar-cotizador.sh?t=$(date +%s)" -o instalar-cotizador.sh
-if command -v soffice >/dev/null && [ -x pyenv/bin/python ]; then echo "cotizador: dependencias ya instaladas"
+if command -v soffice >/dev/null && [ -x pyenv/bin/python ] && fc-list | grep -qi carlito; then echo "cotizador: dependencias ya instaladas"
 else echo "=== cotizador $(date) ===" >> /root/instalar.log
   # Fuera del servicio (systemd-run) para que el reinicio del puente no corte la instalación a la mitad
   systemd-run --unit=gecem-cotizador-$(date +%s) --collect -p StandardOutput=append:/root/instalar.log -p StandardError=append:/root/instalar.log bash /opt/puente-gecem/instalar-cotizador.sh \
