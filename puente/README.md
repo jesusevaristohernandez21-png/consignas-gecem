@@ -41,3 +41,9 @@ Qué hace: cada 30 s manda lo que la app tenga pendiente (a personas o al grupo 
 cada mensaje que llegue en **chat privado** (no del grupo) se lo pasa a la app (las notas de voz van en base64 para transcribirlas),
 y cada 10 min manda la lista de participantes del grupo para ligar número ↔ usuario.
 **Ojo al editar index.js:** este archivo lo usan Consignas Y Operación; no lo reemplaces con una copia vieja.
+
+## v1.8 — cotizaciones de Operación GECEM
+- La app Operación arma el borrador de la cotización y el puente genera el PDF y el XLSX con la plantilla de GECEM (`cotizador/`, Python + LibreOffice) y los regresa a la app (`cot_pendientes` / `cot_resultado`).
+- Los mensajes de Operación pueden llevar documento adjunto (`archivo_id` → se manda como documento de WhatsApp).
+- `/actualizar` baja `cotizador/` y lanza `instalar-cotizador.sh` fuera del servicio (`systemd-run`): instala LibreOffice Calc sin interfaz y un entorno de Python (`/opt/puente-gecem/pyenv`) con openpyxl 3.1 y Pillow. La primera vez tarda unos minutos; avance en `/log`. La página de estado muestra "Cotizador: 🟢 listo".
+- Las fotos de productos se bajan de la app (`/cot-img/…`) la primera vez que se usan y se guardan en `datos/cot-img`.

@@ -14,4 +14,16 @@ if ! grep -q "widSerialized" node_modules/whatsapp-web.js/src/util/Injected/Util
 else echo "parche ya estaba"; fi
 # v1.5: servidor ntfy propio (alarmas de caseta sin la cuota de ntfy.sh)
 curl -fsSL "$BASE/instalar-ntfy.sh?t=$(date +%s)" -o instalar-ntfy.sh && { echo "=== ntfy $(date) ===" >> /root/instalar.log; bash -x instalar-ntfy.sh >> /root/instalar.log 2>&1 || echo "AVISO: ntfy no se pudo instalar (ver /log)" | tee -a /root/instalar.log; }
+# v1.8: generador de cotizaciones (plantilla Python + LibreOffice). Las dependencias se instalan en segundo plano.
+mkdir -p cotizador
+for f in generar_cotizacion_gecem.py buscar_imagen.py correr.py logo_gecem.jpeg logo_gecem_servicio.png; do
+  curl -fsSL "$BASE/cotizador/$f?t=$(date +%s)" -o "cotizador/$f"
+done
+curl -fsSL "$BASE/instalar-cotizador.sh?t=$(date +%s)" -o instalar-cotizador.sh
+if command -v soffice >/dev/null && [ -x pyenv/bin/python ]; then echo "cotizador: dependencias ya instaladas"
+else echo "=== cotizador $(date) ===" >> /root/instalar.log
+  # Fuera del servicio (systemd-run) para que el reinicio del puente no corte la instalación a la mitad
+  systemd-run --unit=gecem-cotizador-$(date +%s) --collect -p StandardOutput=append:/root/instalar.log -p StandardError=append:/root/instalar.log bash /opt/puente-gecem/instalar-cotizador.sh \
+    || (nohup bash instalar-cotizador.sh >> /root/instalar.log 2>&1 &)
+  echo "cotizador: instalando LibreOffice en segundo plano (ver /log en unos minutos)"; fi
 echo "ACTUALIZADO $(date)"

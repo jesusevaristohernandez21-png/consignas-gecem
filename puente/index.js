@@ -1,5 +1,5 @@
 // ============================================================
-//  PUENTE WHATSAPP — Consignas GECEM + Operación GECEM (v1.7)
+//  PUENTE WHATSAPP — Consignas GECEM + Operación GECEM (v1.8: + cotizaciones)
 //  Corre en un servidor (VPS). Usa el celular "GECEM Evidencias" (WhatsApp Web).
 //  Cada 30 s pregunta a la app qué evidencias faltan por publicar, manda la(s) foto(s)
 //  con el texto al grupo de la mesa directiva y le avisa a la app que ya quedó.
@@ -80,6 +80,7 @@ client.on('message', async msg => {
     }
     await opApi('entrada', Object.assign({ msg_id: (msg.id && (msg.id._serialized || msg.id.$1)) || null, wa: num, lid: lid && lid !== num ? lid : '', nombre, tipo, texto }, extra));
     opEstado.recibidos++; log('Operación <- ' + (nombre || num) + ': ' + texto.slice(0, 60));
+    setTimeout(opCiclo, 300);   // v1.8: manda la respuesta (y genera cotizaciones) sin esperar al siguiente ciclo
   } catch (e) { opEstado.errores++; opEstado.ultimoError = 'entrada: ' + e.message; log('entrada:', e.message); }
 });
 // v1.7: traduce un id "lid" (xxx@lid) al número de teléfono, probando lo que exponga WhatsApp Web
@@ -124,6 +125,7 @@ let opUltimoPart = 0, opOcupado = false;
 async function opCiclo() {
   if (!opActivo() || opOcupado) return; opOcupado = true;
   try {
+    await cotCiclo();
     const r = await opApi('pendientes', {});
     opEstado.ultimoCiclo = new Date().toISOString();
     if (estado.listo) {
@@ -132,7 +134,12 @@ async function opCiclo() {
           let jid;
           if (p.tipo === 'grupo') jid = await idGrupo(p.wa);
           else { if (!String(p.wa).replace(/\D/g, '')) throw new Error('sin número'); jid = await idTelefono(p.wa); }
-          await client.sendMessage(jid, p.texto);
+          if (p.archivo_id) {
+            // v1.8: mensaje con documento (PDF de cotización): la app lo da en base64
+            const a = await opApi('archivo', { id: p.archivo_id });
+            const media = new MessageMedia(a.tipo || 'application/pdf', a.b64, a.nombre || 'archivo.pdf');
+            await client.sendMessage(jid, media, { caption: p.texto, sendMediaAsDocument: true });
+          } else await client.sendMessage(jid, p.texto);
           await opApi('marcar', { id: p.id, ok: true });
           opEstado.enviados++; log('Operación -> ' + (p.tipo === 'grupo' ? 'grupo ' + p.wa : p.wa) + ': ' + p.texto.slice(0, 50).replace(/\n/g, ' '));
           await new Promise(res => setTimeout(res, 2500));
@@ -145,6 +152,39 @@ async function opCiclo() {
     }
   } catch (e) { opEstado.ultimoError = e.message; log('Ciclo Operación:', e.message); }
   finally { opOcupado = false; }
+}
+// ---------- v1.8: cotizaciones de Operación (plantilla Python + LibreOffice en este servidor) ----------
+const COT_DIR = path.join(__dirname, 'cotizador');
+const COT_IMG = path.join(DATOS, 'cot-img');      // fotos de productos (se bajan de la app la primera vez)
+const COT_HOME = path.join(DATOS, 'lo-home');     // perfil de LibreOffice
+let cotEstado = { hechas: 0, errores: 0, ultima: '', ultimoError: '' };
+const cotPy = () => fs.existsSync(path.join(__dirname, 'pyenv', 'bin', 'python')) ? path.join(__dirname, 'pyenv', 'bin', 'python') : 'python3';
+function cotListo() { try { require('child_process').execSync('command -v soffice', { stdio: 'ignore' }); return fs.existsSync(path.join(COT_DIR, 'correr.py')); } catch (e) { return false; } }
+async function cotCiclo() {
+  let r; try { r = await opApi('cot_pendientes', { listo: cotListo() }); } catch (e) { return; }
+  for (const c of r.cotizaciones || []) {
+    let tmp = '';
+    try {
+      if (!cotListo()) throw new Error('El servidor aún no tiene LibreOffice/plantilla (corre /actualizar y espera unos minutos)');
+      fs.mkdirSync(COT_IMG, { recursive: true }); fs.mkdirSync(COT_HOME, { recursive: true });
+      for (const sl of c.imgs || []) {
+        const f = path.join(COT_IMG, sl + '.jpg');
+        if (fs.existsSync(f)) continue;
+        try { const ri = await fetch(OP.url.replace(/\/$/, '') + '/cot-img/' + encodeURIComponent(sl) + '.jpg'); if (ri.ok) fs.writeFileSync(f, Buffer.from(await ri.arrayBuffer())); } catch (e) { log('foto ' + sl + ':', e.message); }
+      }
+      tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'cot-'));
+      fs.writeFileSync(path.join(tmp, 'cfg.json'), JSON.stringify(c.cfg));
+      const out = await new Promise((res, rej) => require('child_process').execFile(cotPy(), [path.join(COT_DIR, 'correr.py'), path.join(tmp, 'cfg.json'), COT_IMG, tmp],
+        { timeout: 150000, env: Object.assign({}, process.env, { HOME: COT_HOME }) }, (e, so, se) => e ? rej(new Error(String(se || e.message).slice(-400))) : res(String(so))));
+      const j = JSON.parse(out.trim().split('\n').pop());
+      if (!j.pdf || !fs.existsSync(j.pdf)) throw new Error('No salió el PDF');
+      await opApi('cot_resultado', { id: c.id, ok: true, pdf_b64: fs.readFileSync(j.pdf).toString('base64'), xlsx_b64: fs.existsSync(j.xlsx) ? fs.readFileSync(j.xlsx).toString('base64') : '' });
+      cotEstado.hechas++; cotEstado.ultima = c.folio + ' ' + new Date().toISOString().slice(0, 16); log('Cotización ' + c.folio + ' generada');
+    } catch (e) {
+      cotEstado.errores++; cotEstado.ultimoError = c.folio + ': ' + e.message; log('ERROR cotización', c.folio, e.message);
+      try { await opApi('cot_resultado', { id: c.id, ok: false, error: e.message }); } catch (e2) { log('No pude reportar la cotización:', e2.message); }
+    } finally { if (tmp) try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* nada */ } }
+  }
 }
 async function opTick() {
   if (!opActivo()) return;
@@ -274,6 +314,7 @@ http.createServer(async (req, res) => {
       '<p>Último ciclo: ' + (estado.ultimoCiclo || '—') + '<br>Enviados desde que arrancó: ' + estado.enviados + ' · errores: ' + estado.errores + '</p>' +
       (estado.ultimoError ? '<p style="color:#b00">Último error: ' + estado.ultimoError + '</p>' : '') +
       '<p>Operación GECEM: ' + (opActivo() ? '🟢 configurada · enviados ' + opEstado.enviados + ' · recibidos ' + opEstado.recibidos + (opEstado.ultimoError ? ' · <span style="color:#b00">' + opEstado.ultimoError + '</span>' : '') : 'sin configurar') + ' · <a href="/operacion?k=' + PUENTE_KEY + '">configurar</a></p>' +
+      '<p>Cotizador: ' + (cotListo() ? '🟢 listo' : '🟡 sin LibreOffice todavía (corre /actualizar)') + ' · hechas ' + cotEstado.hechas + (cotEstado.ultimoError ? ' · <span style="color:#b00">' + cotEstado.ultimoError + '</span>' : '') + '</p>' +
       '<p>Grupos que ve este WhatsApp:<br>' + (estado.grupos.map(g => '• ' + g).join('<br>') || '(aún no)') + '</p><meta http-equiv="refresh" content="30">';
   }
   res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:sans-serif;max-width:480px;margin:20px auto;padding:0 12px">' + cuerpo + '</body>');
