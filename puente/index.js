@@ -64,9 +64,12 @@ client.on('message', async msg => {
     if (!opActivo() || msg.fromMe) return;
     const from = String(msg.from || '');
     if (from.endsWith('@g.us') || from === 'status@broadcast') return;
-    let num = from.replace(/@.*$/, ''), nombre = '';
+    let num = from.replace(/@.*$/, ''), nombre = '', lid = '';
+    if (from.endsWith('@lid')) lid = num;
     try { const c = await msg.getContact(); if (c) { if (c.number) num = c.number; nombre = c.pushname || c.name || c.shortName || ''; } } catch (e) { /* sin contacto */ }
-    if (!/^\d{10,15}$/.test(num)) { log('Mensaje sin número reconocible:', from); return; }
+    // v1.7: WhatsApp a veces manda un id "lid" en vez del número; se intenta traducirlo
+    if (lid && num === lid) { const tel = await telDeLid(lid); if (tel) num = tel; }
+    if (!/^\d{10,15}$/.test(num)) { log('Mensaje sin número reconocible:', from); }
     const tipo = msg.type === 'chat' ? 'chat' : (msg.type === 'ptt' || msg.type === 'audio') ? 'audio' : msg.type === 'image' ? 'imagen' : 'otro';
     const texto = msg.body || (tipo === 'imagen' ? '(foto)' : tipo === 'audio' ? '(audio)' : '(' + msg.type + ')');
     const extra = {};
@@ -75,10 +78,31 @@ client.on('message', async msg => {
       try { const m = await msg.downloadMedia(); if (m && m.data && m.data.length < 6 * 1024 * 1024) { extra.audio_b64 = m.data; extra.mime = m.mimetype || 'audio/ogg'; } }
       catch (e) { log('No pude bajar el audio:', e.message); }
     }
-    await opApi('entrada', Object.assign({ msg_id: (msg.id && (msg.id._serialized || msg.id.$1)) || null, wa: num, nombre, tipo, texto }, extra));
+    await opApi('entrada', Object.assign({ msg_id: (msg.id && (msg.id._serialized || msg.id.$1)) || null, wa: num, lid: lid && lid !== num ? lid : '', nombre, tipo, texto }, extra));
     opEstado.recibidos++; log('Operación <- ' + (nombre || num) + ': ' + texto.slice(0, 60));
   } catch (e) { opEstado.errores++; opEstado.ultimoError = 'entrada: ' + e.message; log('entrada:', e.message); }
 });
+// v1.7: traduce un id "lid" (xxx@lid) al número de teléfono, probando lo que exponga WhatsApp Web
+async function telDeLid(lid) {
+  try {
+    const r = await client.pupPage.evaluate(async (l) => {
+      try {
+        const S = window.Store || {};
+        const W = window.require ? (function () { try { return window.require('WAWebApiContact'); } catch (e) { return null; } })() : null;
+        const mk = (u, srv) => ({ user: u, server: srv, _serialized: u + '@' + srv });
+        const cands = [];
+        if (S.LidUtils && S.LidUtils.getPhoneNumber) cands.push(() => S.LidUtils.getPhoneNumber(mk(l, 'lid')));
+        if (W && W.getPhoneNumber) cands.push(() => W.getPhoneNumber(mk(l, 'lid')));
+        if (S.LidUtils && S.LidUtils.getCurrentLid && S.Contact) cands.push(() => { const c = S.Contact.get(l + '@lid'); return c && (c.phoneNumber || (c.userid && mk(c.userid, 'c.us'))); });
+        for (const f of cands) { try { const x = await f(); const v = x && (x._serialized || x.user || x); if (v) return String(v); } catch (e) { /* siguiente */ } }
+      } catch (e) { /* nada */ }
+      return '';
+    }, lid);
+    const d = String(r || '').replace(/@.*$/, '').replace(/\D/g, '');
+    if (/^\d{10,15}$/.test(d)) { log('lid ' + lid + ' → ' + d); return d; }
+  } catch (e) { log('telDeLid:', e.message); }
+  return '';
+}
 async function opParticipantes(nombreGrupo) {
   try {
     const gid = await idGrupo(nombreGrupo);
@@ -88,7 +112,8 @@ async function opParticipantes(nombreGrupo) {
       const id = (p.id && (p.id._serialized || p.id.$1)) || '';
       let num = id.replace(/@.*$/, ''), nombre = '';
       try { const c = await client.getContactById(id); if (c) { if (c.number) num = c.number; nombre = c.pushname || c.name || ''; } } catch (e) { /* sigue */ }
-      if (/^\d{10,15}$/.test(num)) lista.push({ wa: num, nombre });
+      if (id.endsWith('@lid') && num === id.replace(/@.*$/, '')) { const tel = await telDeLid(num); if (tel) num = tel; }
+      lista.push({ wa: num, nombre });
     }
     await opApi('participantes', { grupo: nombreGrupo, lista });
     log('Operación: ' + lista.length + ' participantes de "' + nombreGrupo + '"');
