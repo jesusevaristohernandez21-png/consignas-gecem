@@ -229,7 +229,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.28 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.29 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -299,8 +299,8 @@
       <!-- v3.13: informe de cierre del día (recibidos, entregados y los que quedan en caseta) -->
       <h2>📋 Informe del día</h2>
       <div class="card" id="pq-informe"></div>
-      <button class="btn wa" onclick="compartirInformePaqueteria()">📲 Compartir informe del día por WhatsApp</button>
-      <div class="mini centro">Al cerrar el turno manda este informe al grupo: cuántos paquetes llegaron hoy, cuántos se entregaron y cuántos quedan en caseta.</div>
+      <button class="btn wa" id="pq-compartir-inf" onclick="compartirInformePaqueteria()">📲 Compartir informe del día por WhatsApp</button>
+      <div class="mini centro" id="pq-inf-nota">Al cerrar el turno manda este informe al grupo: cuántos paquetes llegaron hoy, cuántos se entregaron y cuántos quedan en caseta.</div>
     </div>
   </main>
   <nav class="barra" id="barra">
@@ -974,8 +974,12 @@ function pintarPaquetes(lista) {
   var el = document.getElementById('lista-paquetes'); el.innerHTML = '';
   document.getElementById('pq-titulo').textContent = 'Pendientes de entregar (' + lista.length + ')';
   var b = document.querySelector('#barra [data-t="paqueteria"]'); if (b) b.innerHTML = '<span>📦</span>Paquetería' + (lista.length ? ' (' + lista.length + ')' : '');
-  document.getElementById('pq-compartir').style.display = lista.length ? '' : 'none';
-  document.getElementById('pq-compartir-nota').style.display = lista.length ? '' : 'none';
+  // v3.29: con informe automático (puente + grupo + hora) no hay nada que compartir a mano
+  var auto = S.caseta && S.caseta.informe_paq;
+  document.getElementById('pq-compartir').style.display = (lista.length && !auto) ? '' : 'none';
+  document.getElementById('pq-compartir-nota').style.display = (lista.length && !auto) ? '' : 'none';
+  document.getElementById('pq-compartir-inf').style.display = auto ? 'none' : '';
+  document.getElementById('pq-inf-nota').innerHTML = auto ? '🤖 <b>Este informe se manda solo al grupo a las ' + esc(auto) + '.</b> No tienes que compartir nada; solo registra bien cada paquete y cada entrega.' : 'Al cerrar el turno manda este informe al grupo: cuántos paquetes llegaron hoy, cuántos se entregaron y cuántos quedan en caseta.';
   pintarInformePaqueteria();
   if (!lista.length) { el.innerHTML = '<div class="card mini">No hay paquetes pendientes.</div>'; return; }
   lista.forEach(function (q) {
