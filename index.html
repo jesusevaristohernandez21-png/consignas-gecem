@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.23 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.24 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -346,7 +346,7 @@
       <div class="mini" id="l-ayuda-compartir" style="margin-top:6px"></div>
       <div class="mini" id="l-compartido" style="margin-top:8px"></div>
     </div>
-    <button class="btn sec" onclick="ir('p-inicio');cargarEstado(true)">Volver a consignas</button>
+    <button class="btn sec" onclick="volverAInicio()">Volver a consignas</button>
   </main>
 </div>
 
@@ -505,6 +505,9 @@
           <div><label class="mini" style="display:flex;align-items:center;gap:8px;font-weight:normal"><input id="j-llam-aviso" type="checkbox" style="width:auto;margin:0"> Llamar también en las de "solo recordatorio"</label><div class="mini">Cada llamada cuesta (~$0.05 USD). Sin esto, esas consignas solo suenan en la app ntfy y llegan por WhatsApp.</div></div>
           <div><label>Volver a llamar cada (min)</label><input id="j-llam-cada" type="number" min="1" max="120" value="15"><div class="mini">Mientras siga pendiente y no se venza.</div></div>
         </div>
+        <label style="margin-top:14px">⚡ Rapidez de la app</label>
+        <div class="mini" id="j-velocidad">Sin mediciones todavía.</div>
+        <button type="button" class="btn sec chico" onclick="alert(resumenTiempos())">Ver mediciones de este celular</button>
         <label style="margin-top:14px">☎️ Twilio (WhatsApp oficial y llamadas) <span id="j-tw-estado" class="mini"></span></label>
         <div class="mini">Si llenas esto, los avisos por WhatsApp y las llamadas salen por Twilio. Si lo dejas vacío, sigue CallMeBot. Datos en twilio.com → Console.</div>
         <div class="dos">
@@ -593,13 +596,15 @@ function llamar(accion, params) {
       }).withFailureHandler(function (e) { rej(new Error(e.message || 'Sin conexión')); }).llamar(accion, params || {});
     } else if (/^https:\/\/script\.google\.com\//.test(URL_APP)) {
       // App instalable (GitHub Pages): POST directo al servidor de Apps Script; si falla, JSONP por GET
-      var corta = null, ctrl = null;
+      var corta = null, ctrl = null, cuerpo = JSON.stringify({ accion: accion, params: params || {} });
+      // v3.24: si lleva fotos (cuerpo grande) NO se corta a los 10 s ni se reintenta por GET (no cabría en la URL): se espera hasta 90 s
+      var grande = cuerpo.length > 20000, t0 = Date.now();
       try { ctrl = new AbortController(); } catch (e) {}
-      var opc = { method: 'POST', body: JSON.stringify({ accion: accion, params: params || {} }) };
-      if (ctrl) { opc.signal = ctrl.signal; corta = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, TOPE_POST); }
+      var opc = { method: 'POST', body: cuerpo };
+      if (ctrl) { opc.signal = ctrl.signal; corta = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, grande ? 90000 : TOPE_POST); }
       fetch(URL_APP, opc)
-        .then(function (r) { clearTimeout(corta); return r.json(); }).then(listo)
-        .catch(function () { clearTimeout(corta); jsonp(accion, params).then(listo).catch(rej); });
+        .then(function (r) { clearTimeout(corta); return r.json(); }).then(function (r) { medir(accion, Date.now() - t0, r && r._ms, cuerpo.length); listo(r); })
+        .catch(function (e) { clearTimeout(corta); if (grande) return rej(new Error('No se pudo enviar (la conexión está muy lenta o se cortó). Revisa los datos del celular y vuelve a intentar.')); jsonp(accion, params).then(listo).catch(rej); });
     } else {
       // Modo prueba local
       fetch('/api', { method: 'POST', body: JSON.stringify({ accion: accion, params: params || {} }) }).then(function (r) { return r.json(); })
@@ -608,6 +613,27 @@ function llamar(accion, params) {
   });
 }
 var cbN = 0;
+// v3.24: medición de rapidez. Guarda las últimas 30 llamadas: cuánto tardó en total (celular+red+servidor) y cuánto el servidor solo.
+function medir(accion, total, servidor, bytes) {
+  try {
+    var l = JSON.parse(localStorage.getItem('cg_tiempos') || '[]');
+    l.push({ a: accion, t: total, s: servidor || 0, b: bytes || 0, h: Date.now(), red: (navigator.connection && navigator.connection.effectiveType) || '' });
+    while (l.length > 30) l.shift();
+    localStorage.setItem('cg_tiempos', JSON.stringify(l));
+  } catch (e) {}
+}
+function resumenTiempos() {
+  var l = []; try { l = JSON.parse(localStorage.getItem('cg_tiempos') || '[]'); } catch (e) {}
+  if (!l.length) return 'Todavía no hay mediciones en este celular.';
+  var por = {};
+  l.forEach(function (x) { (por[x.a] = por[x.a] || []).push(x); });
+  var filas = Object.keys(por).map(function (a) {
+    var xs = por[a], prom = function (k) { return Math.round(xs.reduce(function (s, x) { return s + (x[k] || 0); }, 0) / xs.length); };
+    return a + ': ' + xs.length + ' llamadas · total ' + (prom('t') / 1000).toFixed(1) + ' s (servidor ' + (prom('s') / 1000).toFixed(1) + ' s, red+celular ' + ((prom('t') - prom('s')) / 1000).toFixed(1) + ' s)' + (prom('b') > 20000 ? ' · ' + Math.round(prom('b') / 1024) + ' KB enviados' : '');
+  });
+  var red = l[l.length - 1].red;
+  return 'Últimas ' + l.length + ' llamadas de este celular' + (red ? ' (red: ' + red + ')' : '') + ':\n' + filas.join('\n');
+}
 // En datos móviles la primera petición a veces se queda colgada; por eso todo tiene tope de tiempo
 var TOPE_POST = 10000, TOPE_JSONP = 20000;
 function jsonp(accion, params, reintento) {
@@ -724,9 +750,25 @@ document.addEventListener('visibilitychange', function () {
   // v3.14: actualiza en segundo plano (ya hay algo pintado), sin tapar la pantalla
   if (Date.now() - ultimaVista > 5 * 60000 && S.token && document.getElementById('p-inicio').classList.contains('activa')) { tabInicio('hoy'); cargarEstado(); }
 });
+// v3.24: al volver de "Evidencia guardada" se pinta de inmediato con lo que ya se sabe (sin esperar al servidor) y se actualiza en segundo plano
+function volverAInicio() {
+  try {
+    var u = S.ultimo;
+    if (u && S.estado && S.estado.items) {
+      S.estado.items.forEach(function (it) {
+        if (it.evidencia_id !== u.r.evidencia_id) return;
+        it.estado = u.r.estado; it.guardia = S.guardia; it.subida = u.r.subida || (S.estado.hoy + ' ' + S.estado.hora); it.fotos = u.r.fotos; it.foto_id = u.r.foto_id; it.foto_ver = u.r.foto_ver; it.foto_corta = u.r.foto_corta; it.nota = u.r.nota; it.minutos = u.r.minutos;
+        if (u.r.auto_grupo) it.envio_grupo = 'pendiente';
+      });
+      pintarInicio();
+    }
+  } catch (e) {}
+  ir('p-inicio'); cargarEstado();
+}
 function cargarEstado(manual, arranque) {
   if (manual) cargando(true, arranque ? 'Cargando…' : 'Actualizando…');
-  return llamar('estado', { token: S.token }).then(function (r) {
+  var tiempos; try { if (Date.now() - (+localStorage.getItem('cg_tiempos_env') || 0) > 600000) { tiempos = JSON.parse(localStorage.getItem('cg_tiempos') || '[]').slice(-12); localStorage.setItem('cg_tiempos_env', String(Date.now())); } } catch (e) {}
+  return llamar('estado', { token: S.token, tiempos: tiempos }).then(function (r) {
     S.estado = r; S.estadoEn = Date.now(); S.caseta = r.caseta; pintarInicio(); revisarAlarma();
     ls('cg_estado', JSON.stringify(r));
     err('err-inicio', '');
@@ -818,7 +860,7 @@ function pintarRelevo() {
 }
 function fotoRelevo(slot) {
   var inp = document.getElementById('rv-archivo');
-  inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; cargando(true, 'Preparando foto…'); comprimir(f, 1280, 0.72).then(function (b) { S.relevo.fotos[slot] = b; pintarRelevo(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; }); };
+  inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; cargando(true, 'Preparando foto…'); comprimir(f, 1024, 0.68).then(function (b) { S.relevo.fotos[slot] = b; pintarRelevo(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; }); };
   inp.click();
 }
 function itemRelevoHoy() { var R = S.estado && S.estado.relevo; return (R && !R.hecho) ? R : null; }
@@ -938,7 +980,7 @@ S.paqBlob = null;
 function paqueteFotoElegida(inp) {
   var f = inp.files && inp.files[0]; if (!f) return;
   cargando(true, 'Preparando foto…');
-  comprimir(f, 1280, 0.72).then(function (b) { S.paqBlob = b; pintarMiniPaquete(); }).catch(function (e) { err('err-paq', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
+  comprimir(f, 1024, 0.68).then(function (b) { S.paqBlob = b; pintarMiniPaquete(); }).catch(function (e) { err('err-paq', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
 }
 function pintarMiniPaquete() {
   var g = document.getElementById('pq-minis'); g.innerHTML = '';
@@ -1018,7 +1060,7 @@ function pedirFotoEntrega(q) {
   inp.onchange = function () {
     var f = inp.files && inp.files[0]; if (!f) return;
     cargando(true, 'Preparando foto…');
-    comprimir(f, 1280, 0.72).then(function (b) { S.entrega = { id: q.id, blob: b }; pintarPaquetes((S.estado && S.estado.paquetes) || []); })
+    comprimir(f, 1024, 0.68).then(function (b) { S.entrega = { id: q.id, blob: b }; pintarPaquetes((S.estado && S.estado.paquetes) || []); })
       .catch(function (e) { err('err-paq', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
   };
   inp.click();
@@ -1060,7 +1102,7 @@ function notaFotoElegida(inp) {
   var files = Array.prototype.slice.call(inp.files || []).slice(0, 4 - S.notaBlobs.length); if (!files.length) return;
   cargando(true, 'Preparando foto…');
   var cadena = Promise.resolve();
-  files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1280, 0.72).then(function (b) { S.notaBlobs.push(b); }); }); });
+  files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1024, 0.68).then(function (b) { S.notaBlobs.push(b); }); }); });
   cadena.then(pintarMinisNota).catch(function (e) { err('err-nota', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
 }
 function pintarMinisNota() {
@@ -1248,7 +1290,7 @@ function fotoElegida(inp) {
   if (S.blobs.length + files.length > 8) { files = files.slice(0, 8 - S.blobs.length); if (!files.length) return err('err-foto', 'Máximo 8 fotos por consigna.'); }
   cargando(true, 'Preparando foto' + (files.length > 1 ? 's' : '') + '…');
   var cadena = Promise.resolve();
-  files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1280, 0.72).then(function (b) { S.blobs.push(b); }); }); });
+  files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1024, 0.68).then(function (b) { S.blobs.push(b); }); }); });
   cadena.then(function () { pintarMiniaturas(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
 }
 function pintarMiniaturas() {
@@ -1462,6 +1504,9 @@ function cargarAdmin() {
     document.getElementById('j-adm-clave').value = r.config.clave_admin || '';
     document.getElementById('j-llam-on').checked = (r.config.llamadas_activas || 'si') === 'si';
     document.getElementById('j-preaviso').value = r.config.preaviso_min === undefined ? '15,5' : r.config.preaviso_min;
+    // v3.24: rapidez medida desde los celulares de caseta (lo mandan con el estado cada 10 min)
+    var vel = r.velocidad || {}, vk = Object.keys(vel);
+    document.getElementById('j-velocidad').innerHTML = vk.length ? vk.map(function (id) { var v = vel[id]; return '<b>' + esc(v.nombre || id) + '</b> (' + esc(v.red || 'red ?') + ', ' + esc(String(v.cuando || '').slice(5, 16)) + '): ' + esc(v.resumen || ''); }).join('<br>') : 'Los celulares de caseta todavía no han reportado. Aparece solo, en cuanto usen la app.';
     document.getElementById('j-llam-tras').value = r.config.llamar_tras_min || 30;
     document.getElementById('j-llam-max').value = r.config.llamar_max || 2;
     document.getElementById('j-llam-aviso').checked = r.config.llamar_en_avisos === 'si';
