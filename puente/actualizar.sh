@@ -13,5 +13,5 @@ if ! grep -q "widSerialized" node_modules/whatsapp-web.js/src/util/Injected/Util
   patch -p1 -N -d node_modules/whatsapp-web.js < wwebjs-2.3000.patch && echo "parche aplicado"
 else echo "parche ya estaba"; fi
 # v1.5: servidor ntfy propio (alarmas de caseta sin la cuota de ntfy.sh)
-curl -fsSL "$BASE/instalar-ntfy.sh?t=$(date +%s)" -o instalar-ntfy.sh && (bash instalar-ntfy.sh 2>&1 | tail -3) || echo "AVISO: ntfy no se pudo instalar"
+curl -fsSL "$BASE/instalar-ntfy.sh?t=$(date +%s)" -o instalar-ntfy.sh && { echo "=== ntfy $(date) ===" >> /root/instalar.log; bash -x instalar-ntfy.sh >> /root/instalar.log 2>&1 || echo "AVISO: ntfy no se pudo instalar (ver /log)" | tee -a /root/instalar.log; }
 echo "ACTUALIZADO $(date)"
