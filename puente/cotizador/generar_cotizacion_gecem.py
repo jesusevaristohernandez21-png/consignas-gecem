@@ -167,12 +167,16 @@ def _img_escalada(ruta, box_w=IMG_MAX_PX, box_h=IMG_MAX_PX):
         pil = pil.convert("RGB")
     w, h = pil.size
     f = min(box_w / w, box_h / h)
-    pil = pil.resize((max(1, int(w * f)), max(1, int(h * f))))
+    dw, dh = max(1, int(w * f)), max(1, int(h * f))          # tamano en la hoja (igual que siempre)
+    # Se guarda con 3x pixeles (hasta lo que de la foto) para que se vea nitida en el PDF
+    k = max(1.0, min(3.0, w / dw, h / dh))
+    pil = pil.resize((max(1, int(dw * k)), max(1, int(dh * k))), PILImage.LANCZOS)
     bio = BytesIO()
     pil.save(bio, format="PNG")
     bio.seek(0)
     xi = XLImage(bio)
     xi.format = "png"
+    xi.width, xi.height = dw, dh
     return xi
 
 
