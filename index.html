@@ -147,8 +147,8 @@
     <div class="logo">GECEM</div>
     <div style="font-weight:700;font-size:18px;color:var(--azul2)">Consignas de vigilancia</div>
     <p class="mini" style="margin-top:30px">Escribe el usuario y la contraseña de la caseta para activar este celular.</p>
-    <input id="usuario" type="text" autocapitalize="none" autocomplete="username" spellcheck="false" placeholder="Usuario (ej. santafe)" style="text-align:center;font-size:20px">
-    <input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña" style="text-align:center;font-size:20px;margin-top:10px">
+    <input id="usuario" type="text" autocapitalize="none" autocomplete="off" spellcheck="false" placeholder="Usuario (ej. santafe)" style="text-align:center;font-size:20px">
+    <input id="clave" type="password" autocomplete="new-password" placeholder="Contraseña" style="text-align:center;font-size:20px;margin-top:10px">
     <button class="btn" onclick="entrar()">Entrar</button>
     <div class="error" id="err-clave"></div>
     <p class="mini" style="margin-top:40px">¿Eres supervisor? <a href="#" onclick="irAdmin();return false">Entrar como administrador</a></p>
@@ -235,16 +235,22 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.30 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.31 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
         <div><label>Usuario</label><input id="cd-usuario" autocapitalize="none" placeholder="admin"></div>
         <div><label>Contraseña</label><input id="cd-clave" type="password" placeholder="••••••"></div>
       </div>
-      <button class="btn rojo chico" onclick="cerrarConCandado()">Cerrar sesión de la caseta</button>
+      <button class="btn rojo chico" onclick="cerrarConCandado()">Cerrar sesión / cambiar de caseta</button>
       <button class="btn sec chico" onclick="document.getElementById('candado').style.display='none'">Cancelar</button>
       <div class="error" id="err-candado"></div>
+      <!-- v3.31: después de validar al administrador, elegir a qué caseta cambiar este celular -->
+      <div id="cd-elegir" style="display:none;margin-top:10px">
+        <div class="mini"><b>¿A qué caseta cambias este celular?</b></div>
+        <div id="cd-casetas"></div>
+        <button class="btn sec chico" onclick="cerrarSesionLocal_()">Solo cerrar sesión</button>
+      </div>
     </div>
     </div><!-- /hoy -->
 
@@ -390,7 +396,8 @@
 
 <!-- ===================== ADMIN ===================== -->
 <div class="pantalla" id="p-admin">
-  <header><div><h1>Administrador</h1><small id="a-sub">Consignas GECEM</small></div><button class="icono" onclick="volverDeAdmin()">✕</button></header>
+  <header><div><h1>Administrador</h1><small id="a-sub">Consignas GECEM</small></div><div style="display:flex;gap:8px"><button class="icono" title="Abrir una caseta en este celular" onclick="var e=document.getElementById('adm-elegir');e.style.display=e.style.display==='none'?'':'none';pintarElegirCaseta(document.getElementById('adm-casetas'),(S.admin&&S.admin.casetas||[]).filter(function(c){return String(c.activa)==='si'}),S.adminToken)">🏠</button><button class="icono" onclick="volverDeAdmin()">✕</button></div></header>
+  <div class="card" id="adm-elegir" style="display:none;margin:10px"><div class="mini"><b>Abrir en este celular la caseta:</b></div><div id="adm-casetas"></div></div>
   <div class="tabs">
     <div class="tab sel" data-t="cump" onclick="tab('cump')">Cumplim.</div>
     <div class="tab" data-t="cons" onclick="tab('cons')">Consignas</div>
@@ -715,12 +722,33 @@ function cerrarConCandado() {
   var u = document.getElementById('cd-usuario').value.trim(), k = document.getElementById('cd-clave').value.trim();
   if (!u || !k) return err('err-candado', 'Escribe el usuario y la contraseña del administrador.');
   cargando(true, 'Verificando…');
-  llamar('entrar_admin', { usuario: u, clave: k }).then(function () {
-    document.getElementById('cd-usuario').value = ''; document.getElementById('cd-clave').value = ''; document.getElementById('candado').style.display = 'none';
-    cerrarSesionLocal_();
+  llamar('entrar_admin', { usuario: u, clave: k }).then(function (a) {
+    document.getElementById('cd-usuario').value = ''; document.getElementById('cd-clave').value = '';
+    // v3.31: en vez de mandar a la pantalla de usuario/contraseña (donde Chrome volvía a llenar la caseta anterior), se elige la caseta aquí
+    return llamar('admin_entrar_caseta', { token: a.token }).then(function (r) { pintarElegirCaseta(document.getElementById('cd-casetas'), r.casetas, a.token); document.getElementById('cd-elegir').style.display = ''; });
   }).catch(function () { err('err-candado', 'Usuario o contraseña del administrador incorrectos.'); }).finally(function () { cargando(false); });
 }
 function noSoyYo() { cerrarSesionLocal_(); }
+// v3.31: botones para cambiar este celular a otra caseta (requiere token de administrador)
+function pintarElegirCaseta(el, casetas, adminToken) {
+  el.innerHTML = '';
+  (casetas || []).forEach(function (c) {
+    var b = document.createElement('button'); b.className = 'btn chico' + (S.caseta && String(S.caseta.id) === String(c.id) ? ' sec' : '');
+    b.textContent = (S.caseta && String(S.caseta.id) === String(c.id) ? '✔ ' : '') + c.nombre; b.style.marginTop = '6px';
+    b.onclick = function () { entrarComoCaseta(c.id, adminToken); };
+    el.appendChild(b);
+  });
+}
+function entrarComoCaseta(casetaId, adminToken) {
+  cargando(true, 'Cambiando de caseta…');
+  llamar('admin_entrar_caseta', { token: adminToken, caseta_id: casetaId }).then(function (r) {
+    ls('cg_guardia', null); ls('cg_estado', null); S.guardia = null; S.estado = null;
+    S.token = r.token; S.caseta = r.caseta; ls('cg_token', r.token); ls('cg_usuario', r.usuario);
+    var cd = document.getElementById('candado'); if (cd) cd.style.display = 'none';
+    var ce = document.getElementById('cd-elegir'); if (ce) ce.style.display = 'none';
+    ir('p-inicio'); tabInicio('hoy'); return cargarEstado(true, true);
+  }).catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
+}
 function cerrarSesionLocal_() { ls('cg_token', null); ls('cg_guardia', null); ls('cg_estado', null); S.token = null; S.guardia = null; S.estado = null; document.getElementById('clave').value = ''; document.getElementById('usuario').value = ''; ir('p-clave'); setTimeout(function () { document.getElementById('usuario').focus(); }, 100); }
 // v3.0: secciones de la pantalla del guardia
 function tabInicio(n) {
