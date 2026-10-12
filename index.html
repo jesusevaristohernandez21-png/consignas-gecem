@@ -227,9 +227,15 @@
       <div class="mini" id="alarma-ayuda" style="margin-top:8px">Al tocar "Activar" se abre la app <b>ntfy</b> con el canal ya puesto: toca <b>Suscribir</b> y regresa aquí. Si no se abre nada, <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">instala ntfy desde Play Store</a> y vuelve a tocar "Activar".</div>
       <div class="error" id="err-alarma"></div>
     </div>
+    <!-- v3.30: cambio de turno en Hoy (sin hora fija): foto del que entra y del que sale, se manda sola al grupo -->
+    <div class="card" id="card-relevo" style="margin-top:16px;display:none">
+      <div class="titulo">🔄 Cambio de turno</div>
+      <div class="mini" id="relevo-estado">Cuando llegue tu relevo: elige quién entra y quién sale y toma la foto de cada uno. Se manda solo al grupo.</div>
+      <button class="btn" id="btn-relevo-hoy" style="margin-top:8px" onclick="abrirRelevoHoy()">🔄 Registrar cambio de turno</button>
+    </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.29 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.30 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -324,7 +330,7 @@
       <div class="card"><label style="margin-top:0">¿Quién ENTRA?</label><div class="chips" id="rv-entra"></div><label>¿Quién SALE?</label><div class="chips" id="rv-sale"></div></div>
       <div class="card" data-slot="entra"><div class="titulo">1. Foto del guardia que entra</div><div class="mini">Uniforme completo, de frente, en la caseta.</div><div class="minis rv-mini"></div><button class="btn rojo chico">📷 Tomar foto</button></div>
       <div class="card" data-slot="sale"><div class="titulo">2. Foto del guardia que sale</div><div class="mini">De frente, en la caseta.</div><div class="minis rv-mini"></div><button class="btn rojo chico">📷 Tomar foto</button></div>
-      <div class="card" data-slot="caseta"><div class="titulo">3. Foto de la caseta en orden</div><div class="mini">Que se vea limpia y con el equipo en su lugar (radio, llaves, bitácora).</div><div class="minis rv-mini"></div><button class="btn rojo chico">📷 Tomar foto</button></div>
+      <div class="card" data-slot="caseta"><div class="titulo">3. Foto de la caseta en orden (opcional)</div><div class="mini">Que se vea limpia y con el equipo en su lugar (radio, llaves, bitácora).</div><div class="minis rv-mini"></div><button class="btn rojo chico">📷 Tomar foto</button></div>
       <input type="file" id="rv-archivo" accept="image/*" capture="environment" style="display:none">
     </div>
     <input type="file" id="archivo" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this)">
@@ -875,14 +881,24 @@ function pintarRelevo() {
     b.textContent = R.fotos[slot] ? '📷 Repetir foto' : '📷 Tomar foto'; b.className = 'btn chico ' + (R.fotos[slot] ? 'sec' : 'rojo');
     b.onclick = function () { fotoRelevo(slot); };
   });
-  var n = ['entra', 'sale', 'caseta'].filter(function (k) { return R.fotos[k]; }).length;
-  document.getElementById('btn-enviar').textContent = '✔ Registrar cambio de turno (' + n + '/3 fotos)';
+  var n = ['entra', 'sale'].filter(function (k) { return R.fotos[k]; }).length;
+  document.getElementById('btn-enviar').textContent = n < 2 ? '✔ Registrar cambio de turno (' + n + '/2 fotos)' : '✔ Guardar cambio de turno';
 }
 function fotoRelevo(slot) {
   var inp = document.getElementById('rv-archivo');
   inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; cargando(true, 'Preparando foto…'); comprimir(f, 1024, 0.68).then(function (b) { S.relevo.fotos[slot] = b; pintarRelevo(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; }); };
   inp.click();
 }
+// v3.30: tarjeta de cambio de turno en Hoy
+function pintarRelevoHoy() {
+  var R = S.estado && S.estado.relevo, card = document.getElementById('card-relevo'); if (!card) return;
+  if (!R) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  var b = document.getElementById('btn-relevo-hoy'), m = document.getElementById('relevo-estado');
+  if (R.hecho) { m.innerHTML = '✔ <b>Cambio de turno registrado hoy a las ' + esc(R.hecho_hora) + '</b>' + (R.compartir_grupo ? ' y enviado al grupo.' : '.'); b.style.display = 'none'; }
+  else { m.textContent = 'Cuando llegue tu relevo: elige quién entra y quién sale y toma la foto de cada uno.' + (R.compartir_grupo ? ' Al guardar se manda sola al grupo.' : ''); b.style.display = ''; }
+}
+function abrirRelevoHoy() { var it = itemRelevoHoy(); if (!it) return alert('El cambio de turno de hoy ya está registrado.'); abrirFoto(it); }
 function itemRelevoHoy() { var R = S.estado && S.estado.relevo; return (R && !R.hecho) ? R : null; }
 function ubicacionActual() {
   return new Promise(function (res) {
@@ -919,6 +935,7 @@ function reportarMaterial() {
 
 function pintarInicio() {
   var r = S.estado;
+  try { pintarRelevoHoy(); } catch (e) {}
   document.getElementById('h-caseta').textContent = r.caseta.nombre;
   document.getElementById('h-fecha').textContent = r.hoy_legible + ' · ' + r.hora;
   pintarTurno();
@@ -1283,12 +1300,12 @@ function marcarCompartidoId(id) { llamar('compartido', { token: S.token, evidenc
 
 // ---------- foto ----------
 function abrirFoto(it, agregar) {
-  if (!S.guardia) { alert('Primero elige quién está de turno (arriba).'); window.scrollTo(0, 0); return; }
+  if (!S.guardia && !(it && it.tipo === 'relevo')) { alert('Primero elige quién está de turno (arriba).'); window.scrollTo(0, 0); return; }
   S.actual = it; S.blobs = []; S.modoAgregar = !!agregar;
   document.getElementById('f-titulo').textContent = (agregar ? 'Agregar fotos: ' : '') + it.titulo;
   document.getElementById('f-sub').textContent = 'Hora: ' + it.hora + ' · ' + S.caseta.nombre;
   document.getElementById('f-inst').textContent = it.instruccion || '';
-  document.getElementById('f-guardia').textContent = S.guardia;
+  document.getElementById('f-guardia').textContent = S.guardia || (it.tipo === 'relevo' ? 'el que entra' : '');
   var texto = esTexto(it) && !agregar, fij = esFijas(it) && !agregar, pro = esProto(it) && !agregar, paq = esPaq(it) && !agregar, rv = esRelevo(it) && !agregar;
   document.getElementById('f-detalle').style.display = (texto || rv) ? 'block' : 'none';
   document.getElementById('f-relevo').style.display = rv ? 'block' : 'none';
@@ -1445,14 +1462,14 @@ function enviar() {
     if (!R.entra) return err('err-foto', 'Elige quién ENTRA.');
     if (!R.sale) return err('err-foto', 'Elige quién SALE.');
     if (R.entra === R.sale) return err('err-foto', 'El que entra y el que sale no pueden ser el mismo.');
-    if (!R.fotos.entra || !R.fotos.sale || !R.fotos.caseta) return err('err-foto', 'Faltan fotos: se necesitan las 3 (entra, sale y caseta).');
-    S.blobs = [R.fotos.entra, R.fotos.sale, R.fotos.caseta];
+    if (!R.fotos.entra || !R.fotos.sale) return err('err-foto', 'Faltan fotos: toma la del que ENTRA y la del que SALE.');
+    S.blobs = [R.fotos.entra, R.fotos.sale].concat(R.fotos.caseta ? [R.fotos.caseta] : []);   // v3.30: la de la caseta es opcional
     nota = 'Entra: ' + R.entra + ' · Sale: ' + R.sale + (nota ? '\nNovedades: ' + nota : '');
   }
   var btn = document.getElementById('btn-enviar'); btn.disabled = true;
   cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
-    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota, conos: conos })
+    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: (rv && S.relevo && S.relevo.entra) ? S.relevo.entra : S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota, conos: conos })
       .then(function (r) {
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
