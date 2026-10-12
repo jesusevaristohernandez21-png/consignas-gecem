@@ -216,9 +216,20 @@
       <div class="error" id="err-material"></div>
     </div>
     </details>
+    <!-- v3.28: alarma ntfy con un toque -->
+    <div class="card" id="card-alarma" style="margin-top:16px">
+      <div class="titulo">🔔 Alarma de consignas en este celular</div>
+      <div class="mini">Para que suene fuerte a la hora de cada consigna aunque el celular esté bloqueado. Solo se hace una vez por celular.</div>
+      <div class="dos" style="margin-top:8px">
+        <button class="btn chico" onclick="activarAlarma()">1. Activar alarma</button>
+        <button class="btn sec chico" onclick="probarAlarmaCaseta()">2. Probar que suene</button>
+      </div>
+      <div class="mini" id="alarma-ayuda" style="margin-top:8px">Al tocar "Activar" se abre la app <b>ntfy</b> con el canal ya puesto: toca <b>Suscribir</b> y regresa aquí. Si no se abre nada, <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">instala ntfy desde Play Store</a> y vuelve a tocar "Activar".</div>
+      <div class="error" id="err-alarma"></div>
+    </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.27 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.28 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1852,6 +1863,20 @@ function informePaqAhora(casetaId) {
     cargando(true, 'Encolando…');
     return llamar('admin_informe_paq', { token: S.adminToken, caseta_id: casetaId, enviar: true }).then(function () { alert('Listo. El puente lo publica en el grupo en menos de un minuto.'); });
   }).catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
+}
+// v3.28: suscribir el celular de caseta a su canal de alarma con un toque (link ntfy://servidor/canal)
+function activarAlarma() {
+  var l = S.caseta && S.caseta.alarma_link;
+  if (!l) return err('err-alarma', 'Esta caseta todavía no tiene canal de alarma. Avísale a GECEM.');
+  err('err-alarma', '');
+  try { localStorage.setItem('cg_alarma_tocada', String(Date.now())); } catch (e) {}
+  location.href = l;
+  setTimeout(function () { if (document.visibilityState === 'visible') err('err-alarma', 'No se abrió la app ntfy. Instálala desde Play Store (link de abajo) y vuelve a tocar "Activar alarma".'); }, 2500);
+}
+function probarAlarmaCaseta() {
+  cargando(true, 'Mandando alarma de prueba…');
+  llamar('probar_alarma_caseta', { token: S.token }).then(function (r) { alert(r.enviado ? 'Enviada. En unos segundos debe sonar en este celular. Si no suena, toca "Activar alarma" y luego Suscribir en la app ntfy.' : 'No se pudo mandar. Avísale a GECEM.'); })
+    .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
 }
 function probarLlamada(casetaId) {
   cargando(true, 'Llamando…');
