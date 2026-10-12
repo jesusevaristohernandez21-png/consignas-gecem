@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.22 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.23 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1730,7 +1730,9 @@ function pintarEquipo() {
       '<div class="mini">Con Twilio configurado (Ajustes), los avisos de WhatsApp y las llamadas salen por Twilio y la apikey de CallMeBot ya no se usa.</div>' +
       '<div class="mini">Apikey de CallMeBot (solo sin Twilio). Para obtenerla: desde el celular de caseta mandar por WhatsApp "I allow callmebot to send me messages" al número de CallMeBot (el 20-sep-2026 el bot pidió usar +34 613 01 49 37, guardado primero en contactos; si dice "This Bot is full" usa el número nuevo que indique). Responde con la apikey.</div>' +
       '<label style="margin-top:10px"><input type="checkbox" class="sw" data-k="paqueteria"' + (String(c.paqueteria || 'si') !== 'no' ? ' checked' : '') + '> Esta caseta usa la sección de Paquetería</label>' +
-      '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button><button class="btn sec chico">🚨 Probar alarma (ntfy)</button>';
+      '<label>📦 Hora del informe automático de paquetería al grupo (vacío = apagado)</label><input data-k="informe_paq" value="' + esc(c.informe_paq || '') + '" placeholder="22:00" style="max-width:120px">' +
+      '<div class="mini">A esa hora la app manda sola al grupo de WhatsApp cuántos paquetes llegaron, cuántos se entregaron y cuáles quedan por recoger (solo número de casa y hora; sin nombres ni descripción). El guardia no tiene que hacer nada.</div>' +
+      '<button class="btn chico">Guardar caseta</button><button class="btn sec chico">Probar aviso a este celular</button><button class="btn sec chico">📞 Probar llamada a este celular</button><button class="btn sec chico">🚨 Probar alarma (ntfy)</button><button class="btn sec chico">📦 Informe de paquetería ahora</button>';
     var bs = d.querySelectorAll('button');
     bs[0].onclick = function () {
       var o = { id: c.id, nombre: c.nombre, activa: String(c.activa) === 'si' }; d.querySelectorAll('input').forEach(function (i) { o[i.dataset.k] = i.type === 'checkbox' ? i.checked : i.value.trim(); });
@@ -1740,6 +1742,7 @@ function pintarEquipo() {
     bs[1].onclick = function () { probarWA(c.id); };
     bs[2].onclick = function () { probarLlamada(c.id); };
     bs[3].onclick = function () { probarNtfy(c.id); };
+    bs[4].onclick = function () { informePaqAhora(c.id); };
     lc.appendChild(d);
   });
 }
@@ -1760,6 +1763,16 @@ function probarWA(destino) {
   cargando(true, 'Enviando prueba…');
   llamar('admin_probar_wa', { token: S.adminToken, destino: destino === 'admin' ? 'admin' : 'caseta', caseta_id: destino }).then(function (r) { alert(r.enviado ? 'Enviado. Revisa el WhatsApp.' : 'No se pudo enviar: revisa número y apikey (o mira LogApp en la hoja).'); })
     .catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
+}
+// v3.23: ver el informe de paquetería de hoy y, si se confirma, mandarlo al grupo ahora mismo por el puente
+function informePaqAhora(casetaId) {
+  cargando(true, 'Armando informe…');
+  llamar('admin_informe_paq', { token: S.adminToken, caseta_id: casetaId }).then(function (r) {
+    cargando(false);
+    if (!confirm(r.texto + '\n\n¿Mandarlo AHORA al grupo de WhatsApp de esta caseta?')) return;
+    cargando(true, 'Encolando…');
+    return llamar('admin_informe_paq', { token: S.adminToken, caseta_id: casetaId, enviar: true }).then(function () { alert('Listo. El puente lo publica en el grupo en menos de un minuto.'); });
+  }).catch(function (e) { alert(e.message); }).finally(function () { cargando(false); });
 }
 function probarLlamada(casetaId) {
   cargando(true, 'Llamando…');
