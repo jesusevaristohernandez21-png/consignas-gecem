@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.31 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.32 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -888,12 +888,24 @@ function cargarSemana() {
     var hoy = (S.estado && S.estado.hoy) || '';
     document.getElementById('ck-semana-titulo').textContent = (S.guardia || 'Toda la caseta') + ' · ' + r.desde.split('-').reverse().slice(0, 2).join('/') + ' al ' + r.hasta.split('-').reverse().slice(0, 2).join('/');
     var hm = function (m) { return Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2) + ' min'; };
-    el.innerHTML = '<table style="width:100%"><tr><th>Día</th><th>Entrada</th><th>Salida</th><th>Horas</th></tr>' + r.dias.map(function (d) {
+    el.innerHTML = '<table style="width:100%"><tr><th>Día</th><th>Entrada</th><th>Hasta (relevo)</th><th>Horas</th></tr>' + r.dias.map(function (d) {
       var esHoy = d.fecha === hoy;
       if (!d.turnos.length) return '<tr' + (esHoy ? ' style="background:#eaf2fb"' : '') + '><td>' + d.dia + ' ' + d.fecha.slice(8) + '</td><td colspan="3" class="mini">—</td></tr>';
       return d.turnos.map(function (t, i) { return '<tr' + (esHoy ? ' style="background:#eaf2fb"' : '') + '><td>' + (i ? '' : d.dia + ' ' + d.fecha.slice(8)) + '</td><td>' + esc(t.entrada || '—') + (t.retraso_min ? ' <span style="color:var(--ambar)">+' + t.retraso_min + '</span>' : '') + '</td><td>' + (t.abierto ? '<span style="color:var(--verde)">en turno</span>' : esc(t.salida || '—')) + '</td><td>' + (t.minutos ? hm(t.minutos) : (t.abierto ? '…' : '—')) + '</td></tr>'; }).join('');
     }).join('') + '</table>' +
       '<div class="kpis" style="margin-top:10px;grid-template-columns:repeat(2,1fr)"><div class="kpi"><b>' + r.turnos + '</b><span>turnos</span></div><div class="kpi"><b>' + hm(r.total_min) + '</b><span>trabajadas</span></div></div>';
+    // v3.32: balance de la semana — quién le debe tiempo a quién (el turno va de tu entrada a la entrada del que te releva)
+    var hmS = function (m) { var a = Math.abs(m); return (m < 0 ? '−' : m > 0 ? '+' : '') + Math.floor(a / 60) + ' h ' + ('0' + (a % 60)).slice(-2) + ' min'; };
+    var bal = r.balance || [];
+    if (bal.length) {
+      var hb = '<div class="card" style="margin-top:12px"><div class="titulo">⚖️ Balance de la semana' + (r.cerrada ? ' (cerrada el sábado)' : ' (va en curso)') + '</div>' +
+        '<div class="mini">Tu turno cuenta desde que checas tu entrada hasta que tu relevo checa la suya. Cada turno debe ser de ' + r.horas_turno + ' h.</div>' +
+        '<table style="width:100%;margin-top:6px"><tr><th>Guardia</th><th>Turnos</th><th>Trabajó</th><th>Saldo</th></tr>' +
+        bal.map(function (b) { return '<tr><td>' + esc(b.guardia) + '</td><td>' + (b.turnos - b.en_curso) + (b.en_curso ? ' <span class="mini">(+1 en curso)</span>' : '') + '</td><td>' + hm(b.minutos) + '</td><td style="font-weight:700;color:' + (b.saldo > 0 ? 'var(--verde)' : b.saldo < 0 ? 'var(--rojo)' : 'inherit') + '">' + (b.saldo > 0 ? 'le deben ' : b.saldo < 0 ? 'debe ' : '') + (b.saldo ? hm(Math.abs(b.saldo)) : 'a mano') + '</td></tr>'; }).join('') + '</table>' +
+        ((r.deudas || []).length ? (r.deudas.map(function (d) { return '<div class="aviso" style="margin-top:8px"><b>' + esc(d.debe) + '</b> le debe <b>' + hm(d.minutos) + '</b> a <b>' + esc(d.a) + '</b></div>'; }).join('')) : '<div class="mini" style="margin-top:8px">✔ Están a mano: nadie le debe tiempo a nadie' + (r.cerrada ? '.' : ' por ahora.') + '</div>') +
+        (r.cerrada ? '' : '<div class="mini" style="margin-top:6px">El balance se cierra el sábado. El turno que está en curso cuenta cuando llegue el relevo.</div>') + '</div>';
+      el.innerHTML += hb;
+    }
   }).catch(function (e) { el.innerHTML = '<div class="card mini">' + esc(e.message) + '</div>'; });
 }
 // v3.10: cambio de turno con fotos (quién entra, quién sale, caseta)
