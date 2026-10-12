@@ -1,5 +1,5 @@
 // ============================================================
-//  PUENTE WHATSAPP — Consignas GECEM + Operación GECEM (v1.6)
+//  PUENTE WHATSAPP — Consignas GECEM
 //  Corre en un servidor (VPS). Usa el celular "GECEM Evidencias" (WhatsApp Web).
 //  Cada 30 s pregunta a la app qué evidencias faltan por publicar, manda la(s) foto(s)
 //  con el texto al grupo de la mesa directiva y le avisa a la app que ya quedó.
@@ -20,22 +20,6 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const CADA_MS = parseInt(process.env.CADA_SEG || '30', 10) * 1000;
 const DATOS = process.env.DATOS || path.join(__dirname, 'datos');
 if (!EXEC_URL || !PUENTE_KEY) { console.error('Faltan EXEC_URL o PUENTE_KEY en el entorno.'); process.exit(1); }
-
-// ---------- v1.5: Operación GECEM (segunda fuente) ----------
-// Config en datos/operacion.json: { url: "https://operacion-gecem.vercel.app", clave: "OP-..." }. Se llena en /operacion?k=...
-const OP_FILE = path.join(DATOS, 'operacion.json');
-let OP = { url: '', clave: '' };
-try { OP = Object.assign(OP, JSON.parse(fs.readFileSync(OP_FILE, 'utf8'))); } catch (e) { /* sin configurar */ }
-const opActivo = () => !!(OP.url && OP.clave);
-let opEstado = { ultimoCiclo: null, enviados: 0, recibidos: 0, errores: 0, ultimoError: '', ultimoTick: null };
-async function opApi(accion, params) {
-  const r = await fetch(OP.url.replace(/\/$/, '') + '/api/puente', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(Object.assign({ k: OP.clave, accion }, params || {})) });
-  const txt = await r.text();
-  let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('Operación: respuesta no válida: ' + txt.slice(0, 120)); }
-  if (!j.ok) throw new Error(j.error || 'Error de Operación');
-  return j;
-}
 
 const log = (...a) => console.log(new Date().toISOString().slice(0, 19).replace('T', ' '), ...a);
 let estado = { listo: false, qr: null, ultimoCiclo: null, enviados: 0, errores: 0, ultimoError: '', grupos: [] };
@@ -58,79 +42,6 @@ client.on('qr', qr => { estado.qr = qr; estado.listo = false; log('QR nuevo: abr
 client.on('ready', async () => { estado.listo = true; estado.qr = null; log('WhatsApp conectado.'); await cargarGrupos(); });
 client.on('authenticated', () => log('Sesión autenticada.'));
 client.on('auth_failure', m => { estado.listo = false; log('FALLO de autenticación:', m); });
-// v1.5: mensajes recibidos en chats privados → Operación (el grupo no se lee)
-client.on('message', async msg => {
-  try {
-    if (!opActivo() || msg.fromMe) return;
-    const from = String(msg.from || '');
-    if (from.endsWith('@g.us') || from === 'status@broadcast') return;
-    let num = from.replace(/@.*$/, ''), nombre = '';
-    try { const c = await msg.getContact(); if (c) { if (c.number) num = c.number; nombre = c.pushname || c.name || c.shortName || ''; } } catch (e) { /* sin contacto */ }
-    if (!/^\d{10,15}$/.test(num)) { log('Mensaje sin número reconocible:', from); return; }
-    const tipo = msg.type === 'chat' ? 'chat' : (msg.type === 'ptt' || msg.type === 'audio') ? 'audio' : msg.type === 'image' ? 'imagen' : 'otro';
-    const texto = msg.body || (tipo === 'imagen' ? '(foto)' : tipo === 'audio' ? '(audio)' : '(' + msg.type + ')');
-    const extra = {};
-    if (tipo === 'audio') {
-      // v1.6: la nota de voz se manda a la app (base64) para que la transcriba
-      try { const m = await msg.downloadMedia(); if (m && m.data && m.data.length < 6 * 1024 * 1024) { extra.audio_b64 = m.data; extra.mime = m.mimetype || 'audio/ogg'; } }
-      catch (e) { log('No pude bajar el audio:', e.message); }
-    }
-    await opApi('entrada', Object.assign({ msg_id: (msg.id && (msg.id._serialized || msg.id.$1)) || null, wa: num, nombre, tipo, texto }, extra));
-    opEstado.recibidos++; log('Operación <- ' + (nombre || num) + ': ' + texto.slice(0, 60));
-  } catch (e) { opEstado.errores++; opEstado.ultimoError = 'entrada: ' + e.message; log('entrada:', e.message); }
-});
-async function opParticipantes(nombreGrupo) {
-  try {
-    const gid = await idGrupo(nombreGrupo);
-    const chat = await client.getChatById(gid);
-    const lista = [];
-    for (const p of (chat.participants || [])) {
-      const id = (p.id && (p.id._serialized || p.id.$1)) || '';
-      let num = id.replace(/@.*$/, ''), nombre = '';
-      try { const c = await client.getContactById(id); if (c) { if (c.number) num = c.number; nombre = c.pushname || c.name || ''; } } catch (e) { /* sigue */ }
-      if (/^\d{10,15}$/.test(num)) lista.push({ wa: num, nombre });
-    }
-    await opApi('participantes', { grupo: nombreGrupo, lista });
-    log('Operación: ' + lista.length + ' participantes de "' + nombreGrupo + '"');
-  } catch (e) { opEstado.ultimoError = 'participantes: ' + e.message; log('participantes:', e.message); }
-}
-let opUltimoPart = 0, opOcupado = false;
-// v1.5: ciclo de Operación: manda lo pendiente; cada 10 min refresca los participantes del grupo
-async function opCiclo() {
-  if (!opActivo() || opOcupado) return; opOcupado = true;
-  try {
-    const r = await opApi('pendientes', {});
-    opEstado.ultimoCiclo = new Date().toISOString();
-    if (estado.listo) {
-      for (const p of r.pendientes || []) {
-        try {
-          let jid;
-          if (p.tipo === 'grupo') jid = await idGrupo(p.wa);
-          else {
-            const n = String(p.wa).replace(/\D/g, ''); if (!n) throw new Error('sin número');
-            let id = null; try { id = await client.getNumberId(n); } catch (e) { /* plan B abajo */ }
-            jid = id ? (id._serialized || id.$1) : n + '@c.us';
-          }
-          await client.sendMessage(jid, p.texto);
-          await opApi('marcar', { id: p.id, ok: true });
-          opEstado.enviados++; log('Operación -> ' + (p.tipo === 'grupo' ? 'grupo ' + p.wa : p.wa) + ': ' + p.texto.slice(0, 50).replace(/\n/g, ' '));
-          await new Promise(res => setTimeout(res, 2500));
-        } catch (e) {
-          opEstado.errores++; opEstado.ultimoError = e.message; log('ERROR Operación', p.id, ':', e.message);
-          try { await opApi('marcar', { id: p.id, ok: false, error: e.message }); } catch (e2) { log('No pude marcar:', e2.message); }
-        }
-      }
-      if (r.grupo && Date.now() - opUltimoPart > 10 * 60000) { opUltimoPart = Date.now(); await opParticipantes(r.grupo); }
-    }
-  } catch (e) { opEstado.ultimoError = e.message; log('Ciclo Operación:', e.message); }
-  finally { opOcupado = false; }
-}
-async function opTick() {
-  if (!opActivo()) return;
-  try { const r = await opApi('tick', {}); opEstado.ultimoTick = new Date().toISOString(); if (r.hecho && r.hecho.length) log('Operación tick:', r.hecho.join(', ')); }
-  catch (e) { opEstado.ultimoError = 'tick: ' + e.message; log('tick:', e.message); }
-}
-
 client.on('disconnected', r => { estado.listo = false; log('Desconectado:', r, '— reintentando en 20 s'); setTimeout(() => client.initialize().catch(e => log('init:', e.message)), 20000); });
 
 let grupos = new Map();
@@ -159,6 +70,16 @@ async function idGrupo(nombre) {
   return id;
 }
 
+// v1.6: id de WhatsApp de un número (E.164 sin +). México: WhatsApp usa 52XXXXXXXXXX (sin el 1 viejo de celular).
+async function idTelefono(dig) {
+  dig = String(dig).replace(/\D/g, '');
+  if (/^521\d{10}$/.test(dig)) dig = '52' + dig.slice(3);
+  try {
+    const n = await client.getNumberId(dig);
+    if (n) return n._serialized || n.$1 || (dig + '@c.us');
+  } catch (e) { log('getNumberId falló:', e.message); }
+  return dig + '@c.us';
+}
 // ---------- ciclo ----------
 let ocupado = false;
 async function ciclo() {
@@ -170,7 +91,8 @@ async function ciclo() {
     if (!estado.grupos.length) await cargarGrupos(); // v1.3: reintenta leer los grupos hasta que aparezcan
     for (const p of r.pendientes) {
       try {
-        const gid = await idGrupo(p.grupo);
+        // v1.6: destino "tel:52442..." = mensaje directo al celular (avisos de consignas); si no, es un grupo
+        const gid = /^tel:/.test(p.grupo) ? await idTelefono(p.grupo.slice(4)) : await idGrupo(p.grupo);
         const fotos = (p.fotos || []).filter(f => f.b64);
         if (!fotos.length) { await client.sendMessage(gid, p.texto); }
         else {
@@ -181,7 +103,7 @@ async function ciclo() {
           }
         }
         await api('puente_marcar', { id: p.id, ok: true });
-        estado.enviados++; log('Enviado al grupo "' + p.grupo + '":', p.evidencia_id);
+        estado.enviados++; log('Enviado a "' + (/^tel:/.test(p.grupo) ? 'tel:…' + p.grupo.slice(-4) : p.grupo) + '":', p.evidencia_id);
         await new Promise(res => setTimeout(res, 3000)); // pausa entre envíos: no parecer spam
       } catch (e) {
         estado.errores++; estado.ultimoError = e.message; log('ERROR enviando', p.evidencia_id, ':', e.message);
@@ -211,23 +133,6 @@ http.createServer(async (req, res) => {
       cuerpo = '<pre style="white-space:pre-wrap;font-size:12px">' + out.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) + '</pre><p>Reiniciando en 2 s…</p><meta http-equiv="refresh" content="15;url=/?k=' + PUENTE_KEY + '">';
       setTimeout(() => process.exit(0), 2000);
     } catch (e) { cuerpo = '<p style="color:#b00">No se pudo actualizar: ' + e.message + '</p>'; }
-  } else if (u.pathname === '/operacion') {
-    // v1.5: conectar con la app Operación GECEM (URL y clave del agente)
-    if (req.method === 'POST') {
-      let body = ''; await new Promise(res => { req.on('data', d => body += d); req.on('end', res); });
-      const f = new URLSearchParams(body);
-      OP = { url: String(f.get('url') || '').trim(), clave: String(f.get('clave') || '').trim() };
-      try { fs.mkdirSync(DATOS, { recursive: true }); fs.writeFileSync(OP_FILE, JSON.stringify(OP)); } catch (e) { log('No pude guardar operacion.json:', e.message); }
-      log('Operación configurada: ' + (OP.url || '(vacío)'));
-    }
-    let prueba = '';
-    if (opActivo()) { try { const r = await opApi('estado', {}); prueba = '🟢 La app responde · agente ' + (r.activo ? 'encendido' : 'apagado') + (r.prueba ? ' · modo prueba' : '') + ' · grupo: ' + (r.grupo || '(sin grupo)') + ' · por mandar: ' + r.pendientes; } catch (e) { prueba = '🔴 ' + e.message; } }
-    const esc = t => String(t || '').replace(/"/g, '&quot;');
-    cuerpo = '<h2>Operación GECEM</h2><form method="post"><label>URL de la app<br><input name="url" value="' + esc(OP.url || 'https://operacion-gecem.vercel.app') + '" style="width:100%"></label><br><br>' +
-      '<label>Clave del agente (Cuenta → Agente → Generar clave)<br><input name="clave" value="' + esc(OP.clave) + '" style="width:100%"></label><br><br><button>Guardar</button></form>' +
-      '<p>' + (prueba || 'Sin configurar.') + '</p>' +
-      '<p>Último ciclo: ' + (opEstado.ultimoCiclo || '—') + ' · último tick: ' + (opEstado.ultimoTick || '—') + '<br>Enviados: ' + opEstado.enviados + ' · recibidos: ' + opEstado.recibidos + ' · errores: ' + opEstado.errores + '</p>' +
-      (opEstado.ultimoError ? '<p style="color:#b00">Último error: ' + opEstado.ultimoError + '</p>' : '') + '<p><a href="/?k=' + PUENTE_KEY + '">← estado general</a></p>';
   } else if (u.pathname === '/log') {
     // v1.1: últimas líneas del registro, para diagnosticar sin entrar por SSH
     let txt = '';
@@ -241,7 +146,6 @@ http.createServer(async (req, res) => {
     cuerpo = '<h2>Puente WhatsApp — Consignas GECEM</h2><p>Estado: <b>' + (estado.listo ? '🟢 conectado' : estado.qr ? '🟡 esperando QR (abre /qr)' : '🔴 iniciando…') + '</b></p>' +
       '<p>Último ciclo: ' + (estado.ultimoCiclo || '—') + '<br>Enviados desde que arrancó: ' + estado.enviados + ' · errores: ' + estado.errores + '</p>' +
       (estado.ultimoError ? '<p style="color:#b00">Último error: ' + estado.ultimoError + '</p>' : '') +
-      '<p>Operación GECEM: ' + (opActivo() ? '🟢 configurada · enviados ' + opEstado.enviados + ' · recibidos ' + opEstado.recibidos + (opEstado.ultimoError ? ' · <span style="color:#b00">' + opEstado.ultimoError + '</span>' : '') : 'sin configurar') + ' · <a href="/operacion?k=' + PUENTE_KEY + '">configurar</a></p>' +
       '<p>Grupos que ve este WhatsApp:<br>' + (estado.grupos.map(g => '• ' + g).join('<br>') || '(aún no)') + '</p><meta http-equiv="refresh" content="30">';
   }
   res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:sans-serif;max-width:480px;margin:20px auto;padding:0 12px">' + cuerpo + '</body>');
@@ -252,8 +156,3 @@ function iniciar() { client.initialize().catch(e => { estado.ultimoError = 'init
 iniciar();
 setInterval(ciclo, CADA_MS);
 setTimeout(ciclo, 10000);
-// v1.5: Operación
-setInterval(opCiclo, CADA_MS);
-setTimeout(opCiclo, 15000);
-setInterval(opTick, 60000);
-setTimeout(opTick, 20000);
