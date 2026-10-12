@@ -417,6 +417,7 @@ def cotizar(cfg):
     # --- Escala 100% + margenes estrechos: la tabla llena el ancho de la hoja ---
     ws.print_area = f"A1:F{r}"
     ws.page_setup.orientation = "portrait"
+    ws.page_setup.paperSize = ws.PAPERSIZE_LETTER   # hoja carta fija (el servidor Linux usa A4 por defecto)
     ws.page_setup.fitToWidth = 0
     ws.page_setup.fitToHeight = 0
     if ws.sheet_properties.pageSetUpPr is not None:
