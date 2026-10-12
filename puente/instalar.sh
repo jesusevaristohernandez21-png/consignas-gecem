@@ -22,7 +22,11 @@ mkdir -p /opt/puente-gecem && cd /opt/puente-gecem
 BASE="https://raw.githubusercontent.com/jesusevaristohernandez21-png/consignas-gecem/main/puente"
 curl -fsSL "$BASE/package.json" -o package.json
 curl -fsSL "$BASE/index.js" -o index.js
-npm install --omit=dev 2>&1 | tail -2
+curl -fsSL "$BASE/wwebjs-2.3000.patch" -o wwebjs-2.3000.patch
+apt-get install -y patch >/dev/null
+PUPPETEER_SKIP_DOWNLOAD=1 npm install --omit=dev 2>&1 | tail -2
+# parche de compatibilidad con WhatsApp Web 2.3000.x (whatsapp-web.js 1.34.7)
+patch -p1 -N -d node_modules/whatsapp-web.js < wwebjs-2.3000.patch || true
 CHROME=$(command -v google-chrome-stable || true)
 # si el binario no arranca, se deja vacío y puppeteer usa su propio Chromium
 if [ -n "$CHROME" ] && ! "$CHROME" --version >/dev/null 2>&1; then CHROME=""; fi

@@ -36,8 +36,6 @@ async function api(accion, params) {
 // ---------- WhatsApp ----------
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: DATOS }),
-  // v1.3: versión fija de WhatsApp Web (evita el error "Evaluation failed: r" al leer chats con versiones nuevas)
-  webVersionCache: { type: 'remote', remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html' },
   puppeteer: { headless: true, executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--disable-crash-reporter', '--disable-extensions'] }
 });
 client.on('qr', qr => { estado.qr = qr; estado.listo = false; log('QR nuevo: abre http://<ip>:' + PORT + '/qr?k=... y escanéalo con el celular GECEM Evidencias'); });
@@ -54,7 +52,11 @@ async function cargarGrupos() {
     try { chats = await client.getChats(); }
     catch (e1) {
       // v1.3: plan B si getChats falla: leer los chats directo del Store de WhatsApp Web
-      chats = await client.pupPage.evaluate(() => window.Store.Chat.getModelsArray().filter(c => c.isGroup).map(c => ({ isGroup: true, name: c.formattedTitle || c.name || '', id: { _serialized: c.id._serialized } })));
+      log('getChats falló (' + e1.message + '), leyendo el Store directo');
+      chats = await client.pupPage.evaluate(() => {
+        const col = window.Store && window.Store.Chat; const arr = col ? (col.getModelsArray ? col.getModelsArray() : (col.models || [])) : [];
+        return arr.filter(c => c.isGroup || (c.id && c.id.server === 'g.us')).map(c => ({ isGroup: true, name: c.formattedTitle || c.name || '', id: { _serialized: c.id._serialized || c.id.$1 || (c.id.user + '@' + c.id.server) } }));
+      });
     }
     grupos = new Map(); chats.filter(c => c.isGroup).forEach(c => grupos.set(norm(c.name), c.id._serialized));
     estado.grupos = [...grupos.keys()];
@@ -111,11 +113,13 @@ http.createServer(async (req, res) => {
   else if (u.pathname === '/actualizar') {
     // v1.2: baja la última versión de index.js del repositorio y se reinicia (systemd lo levanta solo)
     try {
-      const r = await fetch('https://raw.githubusercontent.com/jesusevaristohernandez21-png/consignas-gecem/main/puente/index.js?t=' + Date.now());
-      const txt = await r.text();
-      if (!r.ok || txt.indexOf('whatsapp-web.js') < 0) throw new Error('descarga inválida ' + r.status);
-      fs.writeFileSync(__filename, txt);
-      cuerpo = '<p>Actualizado (' + txt.length + ' bytes). Reiniciando en 2 s…</p><meta http-equiv="refresh" content="8;url=/?k=' + PUENTE_KEY + '">';
+      // v1.4: corre actualizar.sh del repositorio (index.js, dependencias y parche de WhatsApp Web)
+      const r = await fetch('https://raw.githubusercontent.com/jesusevaristohernandez21-png/consignas-gecem/main/puente/actualizar.sh?t=' + Date.now());
+      const sh = await r.text();
+      if (!r.ok || sh.indexOf('ACTUALIZADO') < 0) throw new Error('descarga inválida ' + r.status);
+      fs.writeFileSync('/opt/puente-gecem/actualizar.sh', sh);
+      const out = require('child_process').execSync('bash /opt/puente-gecem/actualizar.sh 2>&1', { timeout: 240000 }).toString();
+      cuerpo = '<pre style="white-space:pre-wrap;font-size:12px">' + out.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) + '</pre><p>Reiniciando en 2 s…</p><meta http-equiv="refresh" content="15;url=/?k=' + PUENTE_KEY + '">';
       setTimeout(() => process.exit(0), 2000);
     } catch (e) { cuerpo = '<p style="color:#b00">No se pudo actualizar: ' + e.message + '</p>'; }
   } else if (u.pathname === '/log') {
