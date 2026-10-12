@@ -36,6 +36,8 @@ async function api(accion, params) {
 // ---------- WhatsApp ----------
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: DATOS }),
+  // v1.3: versión fija de WhatsApp Web (evita el error "Evaluation failed: r" al leer chats con versiones nuevas)
+  webVersionCache: { type: 'remote', remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html' },
   puppeteer: { headless: true, executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--disable-crash-reporter', '--disable-extensions'] }
 });
 client.on('qr', qr => { estado.qr = qr; estado.listo = false; log('QR nuevo: abre http://<ip>:' + PORT + '/qr?k=... y escanéalo con el celular GECEM Evidencias'); });
@@ -48,11 +50,16 @@ let grupos = new Map();
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 async function cargarGrupos() {
   try {
-    const chats = await client.getChats();
+    let chats;
+    try { chats = await client.getChats(); }
+    catch (e1) {
+      // v1.3: plan B si getChats falla: leer los chats directo del Store de WhatsApp Web
+      chats = await client.pupPage.evaluate(() => window.Store.Chat.getModelsArray().filter(c => c.isGroup).map(c => ({ isGroup: true, name: c.formattedTitle || c.name || '', id: { _serialized: c.id._serialized } })));
+    }
     grupos = new Map(); chats.filter(c => c.isGroup).forEach(c => grupos.set(norm(c.name), c.id._serialized));
     estado.grupos = [...grupos.keys()];
     log('Grupos disponibles:', estado.grupos.join(' | '));
-  } catch (e) { log('No pude leer los grupos:', e.message); }
+  } catch (e) { estado.ultimoError = 'grupos: ' + e.message; log('No pude leer los grupos:', e.message); }
 }
 async function idGrupo(nombre) {
   let id = grupos.get(norm(nombre));
@@ -69,6 +76,7 @@ async function ciclo() {
     const r = await api('puente_pendientes', {});
     estado.ultimoCiclo = new Date().toISOString();
     if (!estado.listo) { if (r.pendientes.length) log(r.pendientes.length + ' pendiente(s), pero WhatsApp no está conectado.'); return; }
+    if (!estado.grupos.length) await cargarGrupos(); // v1.3: reintenta leer los grupos hasta que aparezcan
     for (const p of r.pendientes) {
       try {
         const gid = await idGrupo(p.grupo);
@@ -99,7 +107,8 @@ http.createServer(async (req, res) => {
   if (u.searchParams.get('k') !== PUENTE_KEY) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Falta la clave (?k=...)'); }
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   let cuerpo;
-  if (u.pathname === '/actualizar') {
+  if (u.pathname === '/grupos') { await cargarGrupos(); cuerpo = '<p>Grupos (' + estado.grupos.length + '):<br>' + (estado.grupos.map(g => '• ' + g).join('<br>') || '(ninguno)') + '</p>' + (estado.ultimoError ? '<p style="color:#b00">' + estado.ultimoError + '</p>' : ''); }
+  else if (u.pathname === '/actualizar') {
     // v1.2: baja la última versión de index.js del repositorio y se reinicia (systemd lo levanta solo)
     try {
       const r = await fetch('https://raw.githubusercontent.com/jesusevaristohernandez21-png/consignas-gecem/main/puente/index.js?t=' + Date.now());
