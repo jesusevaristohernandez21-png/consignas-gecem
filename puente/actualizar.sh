@@ -12,4 +12,6 @@ PUPPETEER_SKIP_DOWNLOAD=1 npm install --omit=dev 2>&1 | tail -1
 if ! grep -q "widSerialized" node_modules/whatsapp-web.js/src/util/Injected/Utils.js; then
   patch -p1 -N -d node_modules/whatsapp-web.js < wwebjs-2.3000.patch && echo "parche aplicado"
 else echo "parche ya estaba"; fi
+# v1.5: servidor ntfy propio (alarmas de caseta sin la cuota de ntfy.sh)
+curl -fsSL "$BASE/instalar-ntfy.sh?t=$(date +%s)" -o instalar-ntfy.sh && (bash instalar-ntfy.sh 2>&1 | tail -3) || echo "AVISO: ntfy no se pudo instalar"
 echo "ACTUALIZADO $(date)"
