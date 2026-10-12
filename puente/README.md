@@ -32,3 +32,12 @@ El mismo puente (mismo número, mismo servidor) manda y recibe los WhatsApp del 
 Qué hace: cada 30 s manda lo que la app tenga pendiente (a personas o al grupo del equipo), cada minuto le da "tick" al reloj del agente,
 y cada mensaje que llegue en **chat privado** (no del grupo) se lo pasa a la app. Cada 10 min manda la lista de participantes del grupo
 para que Jesús ligue número ↔ usuario sin capturarlos.
+
+## v1.7 — también Operación GECEM (agente por WhatsApp)
+El mismo puente (mismo número, mismo servidor) manda y recibe los WhatsApp del agente de Operación GECEM, además de lo de Consignas.
+1. En la app Operación: Cuenta → **Agente** → *Generar clave nueva* (empieza con `OP-`).
+2. En el puente: `http://IP:3000/operacion?k=PT-...` → pegar la URL de la app y esa clave → Guardar. Debe decir "🟢 La app responde".
+Qué hace: cada 30 s manda lo que la app tenga pendiente (a personas o al grupo del equipo), cada minuto le da "tick" al reloj del agente,
+cada mensaje que llegue en **chat privado** (no del grupo) se lo pasa a la app (las notas de voz van en base64 para transcribirlas),
+y cada 10 min manda la lista de participantes del grupo para ligar número ↔ usuario.
+**Ojo al editar index.js:** este archivo lo usan Consignas Y Operación; no lo reemplaces con una copia vieja.

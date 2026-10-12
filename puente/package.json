@@ -1,6 +1,6 @@
 {
   "name": "puente-whatsapp-gecem",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Publica en el grupo de WhatsApp de la mesa directiva las evidencias de Consignas GECEM",
   "main": "index.js",
   "private": true,
