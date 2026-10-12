@@ -218,7 +218,7 @@
     </details>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.24 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.26 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -324,6 +324,15 @@
     </div>
     <div class="mini" style="margin-top:6px" id="f-ayuda">Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.</div>
     <div id="f-miniaturas" class="minis"></div>
+    <!-- v3.26: estacionamiento de visitas: cono → casa -->
+    <div id="f-conos" style="display:none">
+      <div class="card">
+        <div class="titulo">🅿️ ¿Qué cono ocupa cada visita y de qué casa es?</div>
+        <div class="mini">Ya vienen los de anoche: corrige los que cambiaron, quita los que ya se fueron y agrega los nuevos. Si no sabes de qué casa es, pregunta al visitante.</div>
+        <div id="f-conos-lista"></div>
+        <button type="button" class="btn sec chico" onclick="agregarCono()">＋ Agregar cono</button>
+      </div>
+    </div>
     <div id="f-detalle" style="display:none">
       <label id="f-nota-label">Nota (opcional)</label>
       <textarea id="nota" rows="3"></textarea>
@@ -416,7 +425,7 @@
         <label>Título</label><input id="c-titulo">
         <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3"></textarea>
         <label>Tipo de evidencia</label>
-        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option><option value="aviso">Solo recordatorio (avisa a la hora, sin evidencia; p. ej. recorridos que se registran en otra app)</option></select>
+        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="estacionamiento">Estacionamiento de visitas (foto + cono → casa)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option><option value="aviso">Solo recordatorio (avisa a la hora, sin evidencia; p. ej. recorridos que se registran en otra app)</option></select>
         <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
         <label>Hora del aviso (24 h)</label><input id="c-hora" type="time">
         <label>Días</label>
@@ -1268,8 +1277,11 @@ function abrirFoto(it, agregar) {
   var texto = esTexto(it) && !agregar, fij = esFijas(it) && !agregar, pro = esProto(it) && !agregar, paq = esPaq(it) && !agregar, rv = esRelevo(it) && !agregar;
   document.getElementById('f-detalle').style.display = (texto || rv) ? 'block' : 'none';
   document.getElementById('f-relevo').style.display = rv ? 'block' : 'none';
+  var est = it.tipo === 'estacionamiento' && !agregar;
+  document.getElementById('f-conos').style.display = est ? 'block' : 'none';
+  if (est) pintarConos(it.conos_prev || []);
   if (rv) { S.relevo = { entra: null, sale: (S.estado && S.estado.turno && S.estado.turno.guardia) || null, fotos: {} }; pintarRelevo(); }
-  document.getElementById('f-nota-label').textContent = (fij || pro) ? 'Observación (opcional)' : paq ? 'Informe de paquetería del día (se llena solo: llegaron, entregados y los que quedan; puedes agregar algo abajo)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
+  document.getElementById('f-nota-label').textContent = (fij || pro || est) ? 'Observación (opcional)' : paq ? 'Informe de paquetería del día (se llena solo: llegaron, entregados y los que quedan; puedes agregar algo abajo)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
   document.getElementById('nota').placeholder = '';
   document.getElementById('f-ayuda').textContent = paq ? 'Revisa la lista y toca Enviar. Después la mandas al grupo de la mesa directiva con el botón de WhatsApp.' : texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
   document.getElementById('f-ayuda').style.display = (fij || pro) ? 'none' : 'block';
@@ -1284,6 +1296,22 @@ function abrirFoto(it, agregar) {
   pintarProtocolos(pro);
   err('err-foto', '');
   ir('p-foto');
+}
+// v3.26: filas cono → casa
+function pintarConos(lista) {
+  var el = document.getElementById('f-conos-lista'); el.innerHTML = '';
+  (lista && lista.length ? lista : [{ cono: '', casa: '' }]).forEach(function (x) { agregarCono(x.cono, x.casa); });
+}
+function agregarCono(cono, casa) {
+  var el = document.getElementById('f-conos-lista');
+  var d = document.createElement('div'); d.className = 'fila-cono'; d.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px';
+  d.innerHTML = '<input class="cono" placeholder="Cono" inputmode="numeric" style="flex:1;min-width:0" value="' + esc(cono || '') + '"><span>→</span><input class="casa" placeholder="Casa" style="flex:1;min-width:0" value="' + esc(casa || '') + '"><button type="button" class="icono" title="Quitar">✕</button>';
+  d.querySelector('button').onclick = function () { d.remove(); };
+  el.appendChild(d);
+  if (!cono && !casa && el.children.length > 1) d.querySelector('.cono').focus();
+}
+function leerConos() {
+  return Array.prototype.slice.call(document.querySelectorAll('#f-conos-lista .fila-cono')).map(function (d) { return { cono: d.querySelector('.cono').value.trim(), casa: d.querySelector('.casa').value.trim() }; }).filter(function (x) { return x.cono || x.casa; });
 }
 function fotoElegida(inp) {
   var files = Array.prototype.slice.call(inp.files || []); if (!files.length) return;
@@ -1389,6 +1417,12 @@ function enviar() {
     nota = 'Leyó y confirmó ' + lp.length + ' protocolos:\n' + lp.map(function (f) { return '• ' + f.titulo; }).join('\n') + (nota ? '\nObservación: ' + nota : '');
   }
   if (texto && !nota) return err('err-foto', 'Escribe el reporte.');
+  var conos;
+  if (S.actual.tipo === 'estacionamiento' && !S.modoAgregar) {
+    conos = leerConos();
+    if (conos.some(function (x) { return !x.cono || !x.casa; })) return err('err-foto', 'A cada cono ponle la casa (o quita la fila con ✕).');
+    if (!conos.length && !confirm('¿No hay ninguna visita en el estacionamiento esta noche?')) return;
+  }
   // v3.10: cambio de turno: quién entra, quién sale y 3 fotos obligatorias
   var rv = esRelevo(S.actual) && !S.modoAgregar;
   if (rv) {
@@ -1403,7 +1437,7 @@ function enviar() {
   var btn = document.getElementById('btn-enviar'); btn.disabled = true;
   cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
-    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota })
+    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota, conos: conos })
       .then(function (r) {
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
@@ -1565,7 +1599,7 @@ function pintarConsignas() {
   if (!cs.length) el.innerHTML = '<div class="lista-item mini">Sin consignas en esta caseta. Agrega la primera.</div>';
   cs.forEach(function (k) {
     var d = document.createElement('div'); d.className = 'lista-item';
-    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : String(k.tipo) === 'protocolo' ? ' · 📖 protocolos' : String(k.tipo) === 'paqueteria' ? ' · 📦 paquetería' : String(k.tipo) === 'aviso' ? ' · ⏰ solo recordatorio' : String(k.tipo) === 'relevo' ? ' · 🔄 relevo' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
+    d.innerHTML = '<div><b>' + esc(k.hora) + ' · ' + esc(k.titulo) + '</b><div class="mini">' + esc(nombreCaseta(k.caseta_id)) + ' · ' + diasLegibles(k.dias) + (String(k.tipo) === 'texto' ? ' · 📝 reporte' : String(k.tipo) === 'fijas' ? ' · ✅ palomear' : String(k.tipo) === 'protocolo' ? ' · 📖 protocolos' : String(k.tipo) === 'paqueteria' ? ' · 📦 paquetería' : String(k.tipo) === 'aviso' ? ' · ⏰ solo recordatorio' : String(k.tipo) === 'estacionamiento' ? ' · 🅿️ cono → casa' : String(k.tipo) === 'relevo' ? ' · 🔄 relevo' : '') + (String(k.compartir_grupo) === 'si' ? ' · 📲 grupo' : '') + (String(k.activa) !== 'si' ? ' · <span style="color:var(--rojo)">inactiva</span>' : '') + '</div></div><span style="font-size:22px">›</span>';
     d.onclick = function () { editarConsigna(k); }; el.appendChild(d);
   });
 }
@@ -1577,7 +1611,7 @@ function editarConsigna(k) {
   document.getElementById('c-caseta').value = k ? k.caseta_id : casetaCons();
   document.getElementById('c-titulo').value = k ? k.titulo : '';
   document.getElementById('c-inst').value = k ? k.instruccion : '';
-  document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo','paqueteria','relevo','aviso'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
+  document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo','paqueteria','relevo','aviso','estacionamiento'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
   document.getElementById('c-hora').value = k ? String(k.hora) : '';
   document.getElementById('c-tol').value = k ? k.tolerancia_min : 30;
   document.getElementById('c-lim').value = k ? k.limite_min : 120;
