@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.33 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.34 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -292,15 +292,17 @@
       <div class="card">
         <div class="mini">Cada paquete que llegue a la caseta se registra aquí en el momento. Queda la hora de llegada y quién lo recibió. Cuando el residente lo recoja, toca <b>Entregado</b>.</div>
         <div class="dos">
-          <div><label>Casa</label><input id="pq-casa" inputmode="numeric"></div>
-          <div><label>Qué es (opcional)</label><input id="pq-desc"></div>
+          <div><label>Casa</label><input id="pq-casa" inputmode="numeric" autocomplete="off" oninput="guardarBorradorPaq()"></div>
+          <div><label>Qué es (opcional)</label><input id="pq-desc" autocomplete="off" oninput="guardarBorradorPaq()"></div>
         </div>
         <input type="file" id="pq-archivo" accept="image/*" capture="environment" style="display:none" onchange="paqueteFotoElegida(this)">
+        <input type="file" id="pq-galeria" accept="image/*" style="display:none" onchange="paqueteFotoElegida(this)">
         <div id="pq-minis" class="minis"></div>
         <div class="dos">
           <button class="btn sec chico" id="pq-btn-foto" onclick="document.getElementById('pq-archivo').click()">📷 Foto del paquete</button>
           <button class="btn chico" onclick="registrarPaquete()">📦 Registrar paquete</button>
         </div>
+        <div class="mini centro"><a href="#" onclick="document.getElementById('pq-galeria').click();return false">🖼 Si la cámara no abre o se cierra la app, toma la foto con la cámara normal y elígela de la galería aquí</a></div>
         <div class="mini">Primero la casa, luego la foto del paquete (que se vea la etiqueta) y al final <b>Registrar</b>. Al entregarlo, toca <b>Entregado</b>, toma la foto de quien lo recibe y confirma: desaparece de pendientes pero queda en el historial con las dos fotos, la hora y quién lo entregó.</div>
         <div class="error" id="err-paq"></div>
       </div>
@@ -697,7 +699,8 @@ function arrancar() {
   if (!S.token) { document.getElementById('usuario').value = ls('cg_usuario') || ''; ir('p-clave'); return; }
   // Pinta al instante lo último que se vio (guardado en el celular) y actualiza en segundo plano
   var guardado = null; try { guardado = JSON.parse(ls('cg_estado') || 'null'); } catch (e) {}
-  if (guardado && guardado.caseta) { S.estado = guardado; S.caseta = guardado.caseta; pintarInicio(); ir('p-inicio'); cargarEstado(); return; }
+  var abrirPaq = restaurarBorradorPaq();
+  if (guardado && guardado.caseta) { S.estado = guardado; S.caseta = guardado.caseta; pintarInicio(); ir('p-inicio'); if (abrirPaq) tabInicio('paqueteria'); cargarEstado(); return; }
   cargando(true, 'Cargando…');
   ir('p-inicio');
   cargarEstado(true, true);
@@ -1057,11 +1060,40 @@ function pintarPaquetes(lista) {
   });
 }
 // v3.6: foto del paquete al registrarlo
-S.paqBlob = null;
+// v3.34: borrador guardado en el celular (si Android cierra la app al abrir la cámara no se pierde la casa ni la foto),
+// id del paquete generado en el celular (si se reintenta no se duplica) y reintento automático si se cae la red.
+S.paqBlob = null; S.paqCid = null;
+function nuevoCidPaq() { return 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function guardarBorradorPaq(foto) {
+  try {
+    var b = JSON.parse(ls('cg_paq_borrador') || '{}');
+    b.casa = document.getElementById('pq-casa').value; b.desc = document.getElementById('pq-desc').value; b.t = Date.now();
+    if (!S.paqCid) S.paqCid = nuevoCidPaq(); b.cid = S.paqCid;
+    if (foto !== undefined) b.foto = foto;
+    if (!b.casa && !b.desc && !b.foto) { ls('cg_paq_borrador', null); return; }
+    ls('cg_paq_borrador', JSON.stringify(b));
+  } catch (e) {}
+}
+function borrarBorradorPaq() { ls('cg_paq_borrador', null); S.paqCid = null; }
+function dataURLABlob(d) { var p = String(d).split(','), bin = atob(p[1]), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: 'image/jpeg' }); }
+function restaurarBorradorPaq() {
+  try {
+    var b = JSON.parse(ls('cg_paq_borrador') || 'null'); if (!b) return false;
+    if (Date.now() - (b.t || 0) > 6 * 3600000) { borrarBorradorPaq(); return false; }
+    document.getElementById('pq-casa').value = b.casa || ''; document.getElementById('pq-desc').value = b.desc || '';
+    S.paqCid = b.cid || null; S.paqBlob = b.foto ? dataURLABlob(b.foto) : null; pintarMiniPaquete();
+    return Date.now() - (b.t || 0) < 15 * 60000;   // reciente: se abre directo en Paquetería
+  } catch (e) { return false; }
+}
 function paqueteFotoElegida(inp) {
   var f = inp.files && inp.files[0]; if (!f) return;
+  err('err-paq', '');
   cargando(true, 'Preparando foto…');
-  comprimir(f, 1024, 0.68).then(function (b) { S.paqBlob = b; pintarMiniPaquete(); }).catch(function (e) { err('err-paq', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
+  comprimir(f, 1024, 0.68).then(function (b) {
+    S.paqBlob = b; pintarMiniPaquete();
+    return blobADataURL(b).then(function (d) { guardarBorradorPaq(d.length < 1500000 ? d : ''); });
+  }).catch(function (e) { err('err-paq', 'No se pudo leer la foto (' + e.message + '). Intenta de nuevo o elígela de la galería.'); reportarErrorApp('paquete_foto', e.message + ' · ' + (f.type || '?') + ' ' + Math.round((f.size || 0) / 1024) + 'KB'); })
+    .finally(function () { cargando(false); inp.value = ''; });
 }
 function pintarMiniPaquete() {
   var g = document.getElementById('pq-minis'); g.innerHTML = '';
@@ -1069,7 +1101,7 @@ function pintarMiniPaquete() {
   if (!S.paqBlob) return;
   var d = document.createElement('div'); d.className = 'mini-f';
   var im = document.createElement('img'); im.src = URL.createObjectURL(S.paqBlob); d.appendChild(im);
-  var x = document.createElement('button'); x.textContent = '✕'; x.onclick = function () { S.paqBlob = null; pintarMiniPaquete(); }; d.appendChild(x);
+  var x = document.createElement('button'); x.textContent = '✕'; x.onclick = function () { S.paqBlob = null; pintarMiniPaquete(); guardarBorradorPaq(''); }; d.appendChild(x);
   g.appendChild(d);
 }
 function registrarPaquete() {
@@ -1078,12 +1110,34 @@ function registrarPaquete() {
   var casa = document.getElementById('pq-casa').value.trim(), desc = document.getElementById('pq-desc').value.trim();
   if (!casa) { err('err-paq', 'Escribe para qué casa es el paquete.'); return; }
   if (!S.paqBlob) { err('err-paq', 'Toma la foto del paquete (toca 📷 Foto del paquete).'); return; }
-  cargando(true, 'Registrando…');
-  blobADataURL(S.paqBlob).then(function (data) { return llamar('paquete_nuevo', { token: S.token, guardia: S.guardia, casa: casa, descripcion: desc, foto: data }); }).then(function (r) {
-    document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = ''; S.paqBlob = null; pintarMiniPaquete();
+  if (!S.paqCid) S.paqCid = nuevoCidPaq();
+  var cid = S.paqCid;
+  cargando(true, 'Registrando paquete…');
+  blobADataURL(S.paqBlob).then(function (data) {
+    var params = { token: S.token, guardia: S.guardia, casa: casa, descripcion: desc, foto: data, cid: cid };
+    // si se cae la red, se reintenta solo una vez (el id es el mismo: no se duplica)
+    return llamar('paquete_nuevo', params).catch(function (e) {
+      if (/contraseña|sesión|caseta|casa|turno/i.test(e.message)) throw e;
+      cargando(true, 'Reintentando…');
+      return new Promise(function (r) { setTimeout(r, 2500); }).then(function () { return llamar('paquete_nuevo', params); });
+    });
+  }).then(function (r) {
+    document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = ''; S.paqBlob = null; pintarMiniPaquete(); borrarBorradorPaq();
     if (S.estado) { S.estado.paquetes = r.paquetes; S.estado.paquetes_hoy = r.paquetes_hoy || S.estado.paquetes_hoy; ls('cg_estado', JSON.stringify(S.estado)); }
     pintarPaquetes(r.paquetes || []);
-  }).catch(function (e) { err('err-paq', e.message); }).finally(function () { cargando(false); });
+    avisoPaq('✅ Paquete de la casa ' + casa + ' registrado.');
+  }).catch(function (e) {
+    err('err-paq', 'NO se registró: ' + e.message + ' Tus datos y la foto siguen aquí; vuelve a tocar Registrar.');
+    reportarErrorApp('paquete_nuevo', e.message);
+  }).finally(function () { cargando(false); });
+}
+function avisoPaq(txt) {
+  var e = document.getElementById('err-paq'); e.textContent = txt; e.style.display = 'block'; e.style.color = 'var(--verde, #1b7f3b)';
+  setTimeout(function () { if (e.textContent === txt) { e.textContent = ''; e.style.display = 'none'; } e.style.color = ''; }, 5000);
+}
+// v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
+function reportarErrorApp(donde, msg) {
+  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.34', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
 }
 // Días que lleva un paquete en caseta (0 = llegó hoy)
 function diasEnCaseta(q) {
@@ -1154,7 +1208,7 @@ function entregarPaquete(q) {
     S.entrega = null;
     if (S.estado) { S.estado.paquetes = r.paquetes; S.estado.paquetes_hoy = r.paquetes_hoy || S.estado.paquetes_hoy; ls('cg_estado', JSON.stringify(S.estado)); }
     pintarPaquetes(r.paquetes || []);
-  }).catch(function (e) { err('err-paq', e.message); }).finally(function () { cargando(false); });
+  }).catch(function (e) { err('err-paq', 'NO se guardó la entrega: ' + e.message + ' Vuelve a tocar Confirmar entrega.'); reportarErrorApp('paquete_entregar', e.message); }).finally(function () { cargando(false); });
 }
 // ---------- bitácora: notas de la jornada y alberca ----------
 function pintarBitacora(lista) {
@@ -1469,7 +1523,18 @@ function comprimir(file, max, calidad) {
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       c.toBlob(function (b) { URL.revokeObjectURL(u); b ? res(b) : rej(new Error('canvas')); }, 'image/jpeg', calidad);
     };
-    img.onerror = function () { rej(new Error('formato no soportado')); };
+    img.onerror = function () {
+      URL.revokeObjectURL(u);
+      // v3.34: respaldo: algunos celulares no abren la foto como imagen; se intenta con createImageBitmap y si no, se manda tal cual si es jpg chico
+      var plan = window.createImageBitmap ? createImageBitmap(file) : Promise.reject(new Error('sin bitmap'));
+      plan.then(function (bm) {
+        var e2 = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas'); c.width = Math.round(bm.width * e2); c.height = Math.round(bm.height * e2);
+        c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { b ? res(b) : rej(new Error('canvas')); }, 'image/jpeg', calidad);
+      }).catch(function () {
+        if (/jpe?g/i.test(file.type || '') && file.size < 2500000) res(file); else rej(new Error('formato no soportado'));
+      });
+    };
     img.src = u;
   });
 }
