@@ -1,4 +1,4 @@
-const CACHE = 'consignas-gecem-v3-32-9';
+const CACHE = 'consignas-gecem-v3-33-10';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -21,10 +21,10 @@ self.addEventListener('fetch', e => {
       return res;
     }).catch(() => null);
     if (guardada) {
-      // Ya hay copia: si la red no responde en 3 s, se usa la copia y la red sigue actualizando por detrás
-      const tope = new Promise(r => setTimeout(() => r(null), 3000));
-      const primero = await Promise.race([red, tope]);
-      return primero || guardada;
+      // v3.33: la copia guardada se muestra AL INSTANTE y la red actualiza por detrás (la versión nueva entra en la siguiente apertura;
+      // si cambió el service worker, sale la barra azul "Hay una versión nueva"). Antes se esperaba hasta 3 s a la red.
+      e.waitUntil(red);
+      return guardada;
     }
     // Sin copia (primera vez): hay que ir a la red
     const res = await red;
