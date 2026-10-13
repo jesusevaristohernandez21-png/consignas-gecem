@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.34 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.35 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -464,7 +464,10 @@
           <div><label>Recordar cada (min)</label><input id="c-cada" type="number" value="8"></div>
           <div><label>Máximo de avisos</label><input id="c-max" type="number" value="3"><div class="mini">Al llegar aquí te avisa a ti</div></div>
         </div>
-        <label>Se puede subir desde (min antes)</label><input id="c-ant" type="number" value="60">
+        <div class="dos">
+          <div><label>Se puede subir desde (min antes)</label><input id="c-ant" type="number" value="60"></div>
+          <div><label>Mínimo de fotos</label><input id="c-minf" type="number" min="0" max="8" value="0"><div class="mini">0 = sin mínimo (máx. 8)</div></div>
+        </div>
         <label><input type="checkbox" id="c-grupo" class="sw"> Se comparte al grupo de la mesa directiva (el guardia ve el botón de WhatsApp). Sin palomear, es solo para GECEM.</label>
         <label><input type="checkbox" id="c-activa" class="sw" checked> Activa</label>
         <button class="btn verde chico" onclick="guardarConsigna()">Guardar</button>
@@ -1460,7 +1463,8 @@ function pintarMiniaturas() {
   document.getElementById('f-detalle').style.display = S.blobs.length || texto ? 'block' : 'none';
   if (esProto(S.actual) && !S.modoAgregar) { contarProtocolos(); return; }
   if (esFijas(S.actual) && !S.modoAgregar) { contarFijas(); return; }
-  document.getElementById('btn-enviar').textContent = (texto ? '✔ Enviar reporte' : '✔ Enviar evidencia') + (S.blobs.length > 1 ? ' (' + S.blobs.length + ' fotos)' : '');
+  var minF = !S.modoAgregar ? (+(S.actual && S.actual.min_fotos) || 0) : 0;
+  document.getElementById('btn-enviar').textContent = (texto ? '✔ Enviar reporte' : '✔ Enviar evidencia') + (minF > 1 ? ' (' + S.blobs.length + ' de ' + minF + ' fotos)' : S.blobs.length > 1 ? ' (' + S.blobs.length + ' fotos)' : '');
   document.getElementById('btn-tomar').textContent = S.blobs.length ? '📷 Otra foto' : '📷 Tomar foto';
 }
 // Lista de consignas fijas para palomear
@@ -1541,6 +1545,9 @@ function comprimir(file, max, calidad) {
 function enviar() {
   var texto = esTexto(S.actual) && !S.modoAgregar, fij = esFijas(S.actual) && !S.modoAgregar, pro = esProto(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
   if (!S.blobs.length && !texto && !(esRelevo(S.actual) && !S.modoAgregar)) return err('err-foto', 'Primero toma la foto.');
+  // v3.35: mínimo de fotos de la consigna
+  var minF = +(S.actual && S.actual.min_fotos) || 0;
+  if (minF > 1 && !S.modoAgregar && S.blobs.length < minF) return err('err-foto', 'Esta consigna pide mínimo ' + minF + ' fotos. Llevas ' + S.blobs.length + '; toma ' + (minF - S.blobs.length) + ' más.');
   if (fij) {
     var lista = (S.estado && S.estado.fijas) || [];
     var cajas = Array.prototype.slice.call(document.querySelectorAll('#f-fijas input'));
@@ -1755,6 +1762,7 @@ function editarConsigna(k) {
   document.getElementById('c-cada').value = k ? k.recordar_cada_min : 8;
   document.getElementById('c-max').value = k ? k.max_avisos : 3;
   document.getElementById('c-ant').value = k ? k.anticipacion_min : 60;
+  document.getElementById('c-minf').value = k ? (+k.min_fotos || 0) : 0;
   document.getElementById('c-grupo').checked = k ? String(k.compartir_grupo) === 'si' : false;
   document.getElementById('c-activa').checked = k ? String(k.activa) === 'si' : true;
   var dias = k ? String(k.dias) : 'LMXJVSD', dd = document.getElementById('c-dias'); dd.innerHTML = '';
@@ -1766,7 +1774,7 @@ function guardarConsigna() {
   var dias = Array.prototype.map.call(document.querySelectorAll('#c-dias .dia.sel'), function (b) { return b.dataset.l; }).join('');
   var k = { id: consignaEd ? consignaEd.id : null, caseta_id: document.getElementById('c-caseta').value, titulo: document.getElementById('c-titulo').value.trim(), instruccion: document.getElementById('c-inst').value.trim(),
     hora: document.getElementById('c-hora').value, dias: dias, tolerancia_min: +document.getElementById('c-tol').value, limite_min: +document.getElementById('c-lim').value, recordar_cada_min: +document.getElementById('c-cada').value,
-    max_avisos: +document.getElementById('c-max').value, anticipacion_min: +document.getElementById('c-ant').value, compartir_grupo: document.getElementById('c-grupo').checked, activa: document.getElementById('c-activa').checked, tipo: document.getElementById('c-tipo').value };
+    max_avisos: +document.getElementById('c-max').value, anticipacion_min: +document.getElementById('c-ant').value, min_fotos: +document.getElementById('c-minf').value || 0, compartir_grupo: document.getElementById('c-grupo').checked, activa: document.getElementById('c-activa').checked, tipo: document.getElementById('c-tipo').value };
   if (!k.titulo || !k.hora) return err('err-cons', 'Falta el título o la hora.');
   if (!dias) return err('err-cons', 'Elige al menos un día.');
   if (k.limite_min < k.tolerancia_min) return err('err-cons', 'El límite debe ser mayor que los minutos para cumplir.');
