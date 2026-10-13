@@ -138,7 +138,9 @@ async function opCiclo() {
             // v1.8: mensaje con documento (PDF de cotización): la app lo da en base64
             const a = await opApi('archivo', { id: p.archivo_id });
             const media = new MessageMedia(a.tipo || 'application/pdf', a.b64, a.nombre || 'archivo.pdf');
-            await client.sendMessage(jid, media, { caption: p.texto, sendMediaAsDocument: true });
+            // v1.9: las fotos (galería para clientes) se mandan como foto, no como documento
+            const esFoto = /^image\//.test(a.tipo || '');
+            await client.sendMessage(jid, media, esFoto ? (p.texto ? { caption: p.texto } : {}) : { caption: p.texto, sendMediaAsDocument: true });
           } else await client.sendMessage(jid, p.texto);
           await opApi('marcar', { id: p.id, ok: true });
           opEstado.enviados++; log('Operación -> ' + (p.tipo === 'grupo' ? 'grupo ' + p.wa : p.wa) + ': ' + p.texto.slice(0, 50).replace(/\n/g, ' '));
