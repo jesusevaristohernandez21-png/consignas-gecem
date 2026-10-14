@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.35 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.36 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1140,7 +1140,7 @@ function avisoPaq(txt) {
 }
 // v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
 function reportarErrorApp(donde, msg) {
-  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.34', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
+  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.36', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
 }
 // Días que lleva un paquete en caseta (0 = llegó hoy)
 function diasEnCaseta(q) {
@@ -1581,7 +1581,13 @@ function enviar() {
   var btn = document.getElementById('btn-enviar'); btn.disabled = true;
   cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
-    return llamar('subir', { token: S.token, consigna_id: S.actual.consigna_id, guardia: (rv && S.relevo && S.relevo.entra) ? S.relevo.entra : S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota, conos: conos })
+    var params = { token: S.token, consigna_id: S.actual.consigna_id, guardia: (rv && S.relevo && S.relevo.entra) ? S.relevo.entra : S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota, conos: conos };
+    // v3.36: si se cae la señal, se reintenta sola una vez antes de avisar al guardia
+    return llamar('subir', params).catch(function (e) {
+      if (!/conexión|conexion|Failed|network|red|Sin conexión|abort/i.test(e.message)) throw e;
+      cargando(true, 'Señal débil, reintentando…');
+      return new Promise(function (r) { setTimeout(r, 3000); }).then(function () { return llamar('subir', params); });
+    })
       .then(function (r) {
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
@@ -1608,7 +1614,10 @@ function enviar() {
         document.getElementById('l-ayuda-compartir').textContent = conImagen ? 'Al tocar, elige WhatsApp y luego el grupo. La foto se manda como imagen.' : 'Se abre WhatsApp con el texto y el link a la foto; elige el grupo y envía.';
         ir('p-listo');
       });
-  }).catch(function (e) { err('err-foto', e.message); }).finally(function () { cargando(false); btn.disabled = false; });
+  }).catch(function (e) {
+    err('err-foto', 'NO se envió: ' + e.message + ' Tus fotos siguen aquí; vuelve a tocar Enviar.');
+    reportarErrorApp('subir · ' + ((S.actual && S.actual.titulo) || ''), e.message + ' · ' + S.blobs.length + ' foto(s)');
+  }).finally(function () { cargando(false); btn.disabled = false; });
 }
 function compartir() {
   var u = S.ultimo; if (!u) return;
