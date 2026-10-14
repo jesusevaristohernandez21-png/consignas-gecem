@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.36 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.37 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1518,7 +1518,19 @@ function contarProtocolos() {
   b.textContent = n < t ? '✔ Falta leer ' + (t - n) : '✔ Confirmar los ' + t + ' protocolos';
 }
 function blobADataURL(b) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(rd.result); }; rd.onerror = rej; rd.readAsDataURL(b); }); }
+// v3.37: en celulares de gama media (Samsung A07) la foto de la cámara se decodifica ya reducida y fuera del hilo principal
+// (createImageBitmap con resizeWidth): no congela la pantalla ni gasta 100-200 MB de memoria por foto.
 function comprimir(file, max, calidad) {
+  if (window.createImageBitmap) {
+    return createImageBitmap(file, { resizeWidth: max, resizeQuality: 'medium', imageOrientation: 'from-image' }).then(function (bm) {
+      var e2 = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas'); c.width = Math.round(bm.width * e2); c.height = Math.round(bm.height * e2);
+      c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height); try { bm.close(); } catch (e) {}
+      return new Promise(function (r2, j2) { c.toBlob(function (b) { c.width = c.height = 0; b ? r2(b) : j2(new Error('canvas')); }, 'image/jpeg', calidad); });
+    }).catch(function () { return comprimirImg_(file, max, calidad); });
+  }
+  return comprimirImg_(file, max, calidad);
+}
+function comprimirImg_(file, max, calidad) {
   return new Promise(function (res, rej) {
     var img = new Image(); var u = URL.createObjectURL(file);
     img.onload = function () {
