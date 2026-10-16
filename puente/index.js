@@ -75,14 +75,59 @@ client.on('message', async msg => {
     const extra = {};
     if (tipo === 'audio') {
       // v1.6: la nota de voz se manda a la app (base64) para que la transcriba
-      try { const m = await msg.downloadMedia(); if (m && m.data && m.data.length < 6 * 1024 * 1024) { extra.audio_b64 = m.data; extra.mime = m.mimetype || 'audio/ogg'; } }
-      catch (e) { log('No pude bajar el audio:', e.message); }
+      const m = await bajarMedia(msg, 'audio');
+      if (m && m.data.length < 4 * 1024 * 1024) { extra.audio_b64 = m.data; extra.mime = m.mime || 'audio/ogg'; }
+    } else if (tipo === 'imagen') {
+      // v1.10: la foto (pantallazo de Syscom, cita, etc.) se manda a la app para que el agente la lea
+      const m = await bajarMedia(msg, 'imagen');
+      if (m && m.data.length < 4300000) { extra.imagen_b64 = m.data; extra.mime = m.mime || 'image/jpeg'; }
+      else if (m) log('Imagen demasiado grande para mandarla:', m.data.length);
     }
     await opApi('entrada', Object.assign({ msg_id: (msg.id && (msg.id._serialized || msg.id.$1)) || null, wa: num, lid: lid && lid !== num ? lid : '', nombre, tipo, texto }, extra));
     opEstado.recibidos++; log('Operación <- ' + (nombre || num) + ': ' + texto.slice(0, 60));
     setTimeout(opCiclo, 300);   // v1.8: manda la respuesta (y genera cotizaciones) sin esperar al siguiente ciclo
   } catch (e) { opEstado.errores++; opEstado.ultimoError = 'entrada: ' + e.message; log('entrada:', e.message); }
 });
+// v1.10: baja la foto/audio de un mensaje. Primero con la librería; si falla (WhatsApp Web cambió los ids a `$1`
+// y la librería truena con "t"), lo intenta directo en la página: blob ya resuelto → URL renderizable → descifrado.
+async function bajarMedia(msg, que) {
+  try { const m = await msg.downloadMedia(); if (m && m.data) return { data: m.data, mime: m.mimetype }; log('downloadMedia sin datos (' + que + ')'); }
+  catch (e) { log('downloadMedia falló (' + que + '):', String((e && (e.stack || e.message)) || e).slice(0, 300)); }
+  const id = msg.id && (msg.id._serialized || msg.id.$1 || (msg.id.id && ((msg.id.fromMe ? 'true_' : 'false_') + msg.id.remote + '_' + msg.id.id)));
+  try {
+    const r = await client.pupPage.evaluate(async (msgId) => {
+      const pasos = [];
+      try {
+        const C = window.require('WAWebCollections');
+        let m = C.Msg.get(msgId);
+        if (!m) { try { m = (await C.Msg.getMessagesById([msgId]))?.messages?.[0]; } catch (e) { pasos.push('getById:' + (e && e.message)); } }
+        if (!m) return { err: 'no encontré el mensaje ' + msgId + ' · ' + pasos.join(' | ') };
+        const md = m.mediaData || {};
+        if (md.mediaStage !== 'RESOLVED') {
+          try { await m.downloadMedia({ downloadEvenIfExpensive: true, rmrReason: 1, isUserInitiated: true }); } catch (e) { pasos.push('dm:' + (e && (e.message || e.name))); }
+        }
+        let blob = null;
+        const mb = (m.mediaData || {}).mediaBlob;
+        if (mb) { try { blob = typeof mb.forceToBlob === 'function' ? mb.forceToBlob() : (mb._blob || null); } catch (e) { pasos.push('blob:' + (e && e.message)); } }
+        const url = (m.mediaData || {}).renderableUrl;
+        if (!blob && url) { try { blob = await (await fetch(url)).blob(); } catch (e) { pasos.push('url:' + (e && e.message)); } }
+        if (!blob) {
+          try {
+            const dm = window.require('WAWebDownloadManager').downloadManager;
+            const buf = await dm.downloadAndMaybeDecrypt({ directPath: m.directPath, encFilehash: m.encFilehash, filehash: m.filehash, mediaKey: m.mediaKey, mediaKeyTimestamp: m.mediaKeyTimestamp, type: m.type, signal: new AbortController().signal });
+            blob = new Blob([buf], { type: m.mimetype || '' });
+          } catch (e) { pasos.push('descifrar:' + (e && (e.message || e.name || String(e)))); }
+        }
+        if (!blob) return { err: 'sin archivo · etapa ' + ((m.mediaData || {}).mediaStage || '?') + ' · ' + pasos.join(' | ') };
+        const data = await new Promise((ok, mal) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1] || ''); fr.onerror = () => mal(fr.error); fr.readAsDataURL(blob); });
+        return { data, mime: m.mimetype || blob.type };
+      } catch (e) { return { err: pasos.concat(String((e && (e.stack || e.message)) || e)).join(' | ').slice(0, 400) }; }
+    }, id);
+    if (r && r.data) { log('Archivo bajado por la página (' + que + ', ' + Math.round(r.data.length / 1024) + ' KB)'); return r; }
+    log('No pude bajar el archivo (' + que + '):', r && r.err);
+  } catch (e) { log('No pude bajar el archivo (' + que + '):', String((e && e.message) || e).slice(0, 200)); }
+  return null;
+}
 // v1.7: traduce un id "lid" (xxx@lid) al número de teléfono, probando lo que exponga WhatsApp Web
 async function telDeLid(lid) {
   try {
@@ -312,7 +357,7 @@ http.createServer(async (req, res) => {
     const img = await QRCode.toDataURL(estado.qr, { width: 320 });
     cuerpo = '<h2>Escanea con el celular GECEM Evidencias</h2><p>WhatsApp → ⋮ → Dispositivos vinculados → Vincular un dispositivo</p><img src="' + img + '"><p>La página se actualiza sola cada 20 s.</p><meta http-equiv="refresh" content="20">';
   } else {
-    cuerpo = '<h2>Puente WhatsApp — Consignas GECEM</h2><p>Estado: <b>' + (estado.listo ? '🟢 conectado' : estado.qr ? '🟡 esperando QR (abre /qr)' : '🔴 iniciando…') + '</b></p>' +
+    cuerpo = '<h2>Puente WhatsApp — Consignas GECEM · v1.10</h2><p>Estado: <b>' + (estado.listo ? '🟢 conectado' : estado.qr ? '🟡 esperando QR (abre /qr)' : '🔴 iniciando…') + '</b></p>' +
       '<p>Último ciclo: ' + (estado.ultimoCiclo || '—') + '<br>Enviados desde que arrancó: ' + estado.enviados + ' · errores: ' + estado.errores + '</p>' +
       (estado.ultimoError ? '<p style="color:#b00">Último error: ' + estado.ultimoError + '</p>' : '') +
       '<p>Operación GECEM: ' + (opActivo() ? '🟢 configurada · enviados ' + opEstado.enviados + ' · recibidos ' + opEstado.recibidos + (opEstado.ultimoError ? ' · <span style="color:#b00">' + opEstado.ultimoError + '</span>' : '') : 'sin configurar') + ' · <a href="/operacion?k=' + PUENTE_KEY + '">configurar</a></p>' +
