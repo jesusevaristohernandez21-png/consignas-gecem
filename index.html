@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.38 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.39 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1143,7 +1143,7 @@ function avisoPaq(txt) {
 }
 // v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
 function reportarErrorApp(donde, msg) {
-  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.36', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
+  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.39', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
 }
 // Días que lleva un paquete en caseta (0 = llegó hoy)
 function diasEnCaseta(q) {
@@ -1457,7 +1457,11 @@ function fotoElegida(inp) {
   cargando(true, 'Preparando foto' + (files.length > 1 ? 's' : '') + '…');
   var cadena = Promise.resolve();
   files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1024, 0.68).then(function (b) { S.blobs.push(b); }); }); });
-  cadena.then(function () { pintarMiniaturas(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
+  cadena.then(function () { pintarMiniaturas(); }).catch(function (e) {
+    pintarMiniaturas();   // v3.38: las que sí se prepararon se quedan
+    err('err-foto', 'No se pudo preparar la foto: ' + e.message + '. Intenta tomarla otra vez.');
+    reportarErrorApp('preparar foto · ' + ((S.actual && S.actual.titulo) || ''), e.message + ' · llevaba ' + S.blobs.length + ' · ' + files.length + ' nueva(s) · ' + Math.round((files[0] && files[0].size || 0) / 1024) + ' KB');
+  }).finally(function () { cargando(false); inp.value = ''; });
 }
 function pintarMiniaturas() {
   var g = document.getElementById('f-miniaturas'); g.innerHTML = '';
@@ -1530,9 +1534,11 @@ function contarProtocolos() {
 function blobADataURL(b) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(rd.result); }; rd.onerror = rej; rd.readAsDataURL(b); }); }
 // v3.37: en celulares de gama media (Samsung A07) la foto de la cámara se decodifica ya reducida y fuera del hilo principal
 // (createImageBitmap con resizeWidth): no congela la pantalla ni gasta 100-200 MB de memoria por foto.
+// v3.38: con límite de tiempo; si el método rápido se traba (algunos Samsung), se usa el normal
+function conLimite(pr, ms, msg) { return Promise.race([pr, new Promise(function (_, j) { setTimeout(function () { j(new Error(msg)); }, ms); })]); }
 function comprimir(file, max, calidad) {
   if (window.createImageBitmap) {
-    return createImageBitmap(file, { resizeWidth: max, resizeQuality: 'medium', imageOrientation: 'from-image' }).then(function (bm) {
+    return conLimite(createImageBitmap(file, { resizeWidth: max, resizeQuality: 'medium', imageOrientation: 'from-image' }), 12000, 'bitmap lento').then(function (bm) {
       var e2 = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas'); c.width = Math.round(bm.width * e2); c.height = Math.round(bm.height * e2);
       c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height); try { bm.close(); } catch (e) {}
       return new Promise(function (r2, j2) { c.toBlob(function (b) { c.width = c.height = 0; b ? r2(b) : j2(new Error('canvas')); }, 'image/jpeg', calidad); });
@@ -1541,6 +1547,9 @@ function comprimir(file, max, calidad) {
   return comprimirImg_(file, max, calidad);
 }
 function comprimirImg_(file, max, calidad) {
+  return conLimite(comprimirImg0_(file, max, calidad), 25000, 'la foto tardó demasiado en prepararse');
+}
+function comprimirImg0_(file, max, calidad) {
   return new Promise(function (res, rej) {
     var img = new Image(); var u = URL.createObjectURL(file);
     img.onload = function () {
@@ -1601,7 +1610,7 @@ function enviar() {
     S.blobs = [R.fotos.entra, R.fotos.sale].concat(R.fotos.caseta ? [R.fotos.caseta] : []);   // v3.30: la de la caseta es opcional
     nota = 'Entra: ' + R.entra + ' · Sale: ' + R.sale + (nota ? '\nNovedades: ' + nota : '');
   }
-  var btn = document.getElementById('btn-enviar'); btn.disabled = true;
+  var btn = document.getElementById('btn-enviar'); btn.disabled = true; S._subioOk = false;
   cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
     var params = { token: S.token, consigna_id: S.actual.consigna_id, guardia: (rv && S.relevo && S.relevo.entra) ? S.relevo.entra : S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota, conos: conos };
@@ -1612,6 +1621,7 @@ function enviar() {
       return new Promise(function (r) { setTimeout(r, 3000); }).then(function () { return llamar('subir', params); });
     })
       .then(function (r) {
+        S._subioOk = true;   // v3.38: el servidor ya guardó la evidencia
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
         S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
@@ -1622,7 +1632,7 @@ function enviar() {
         // v3.1.1: solo las consignas marcadas por el administrador se comparten al grupo; las demás son internas de GECEM
         document.getElementById('l-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
         document.getElementById('l-aviso-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
-        document.getElementById('l-nombre-grupo').textContent = S.caseta.grupo || 'Mesa Directiva';
+        var ngEl = document.getElementById('l-nombre-grupo'); if (ngEl) ngEl.textContent = S.caseta.grupo || 'Mesa Directiva';   // v3.38: puede no existir si el aviso ya se reescribió
         document.getElementById('l-compartido').textContent = '';
         // v3.16: si el puente la va a publicar solo, no hay que mandarla a mano
         document.getElementById('l-aviso-grupo').innerHTML = r.auto_grupo ? '🤖 <b>Se está enviando sola al grupo de la mesa directiva.</b> No tienes que hacer nada; si en unos minutos no aparece, mándala a mano con el botón.' : 'Esta consigna la pide la mesa directiva. Mándala al grupo de WhatsApp <b id="l-nombre-grupo">' + esc(S.caseta.grupo || 'Mesa Directiva') + '</b>.';
@@ -1638,6 +1648,11 @@ function enviar() {
         ir('p-listo');
       });
   }).catch(function (e) {
+    if (S._subioOk) {   // v3.38: se subió bien y solo falló algo de la pantalla: no asustar al guardia ni duplicar
+      reportarErrorApp('pantalla-listo · ' + ((S.actual && S.actual.titulo) || ''), e.message);
+      try { document.getElementById('l-titulo').textContent = 'Evidencia guardada'; } catch (e2) {}
+      ir('p-listo'); return;
+    }
     err('err-foto', 'NO se envió: ' + e.message + ' Tus fotos siguen aquí; vuelve a tocar Enviar.');
     reportarErrorApp('subir · ' + ((S.actual && S.actual.titulo) || ''), e.message + ' · ' + S.blobs.length + ' foto(s)');
   }).finally(function () { cargando(false); btn.disabled = false; });
