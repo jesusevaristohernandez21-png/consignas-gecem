@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.39 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.40 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -1110,7 +1110,19 @@ function pintarMiniPaquete() {
   var x = document.createElement('button'); x.textContent = '✕'; x.onclick = function () { S.paqBlob = null; pintarMiniPaquete(); guardarBorradorPaq(''); }; d.appendChild(x);
   g.appendChild(d);
 }
+// v3.40: un solo envío a la vez. Antes un doble toque mandaba el mismo paquete dos veces y la copia sobrante se quedaba
+// como "pendiente" para siempre. Si falla la red, antes de reintentar se revisa si el servidor sí lo guardó.
+S.paqEnviando = false; S.entregando = false;
+function paqueteYaGuardado(cid) {
+  return llamar('estado', { token: S.token }).then(function (r) {
+    var esta = (r.paquetes || []).some(function (q) { return String(q.id) === String(cid); }) || (r.paquetes_hoy || []).some(function (q) { return String(q.id) === String(cid); });
+    if (!esta) return null;
+    S.estado = r; ls('cg_estado', JSON.stringify(r));
+    return { ok: true, repetido: true, paquetes: r.paquetes || [], paquetes_hoy: r.paquetes_hoy || [] };
+  }).catch(function () { return null; });
+}
 function registrarPaquete() {
+  if (S.paqEnviando) return;   // v3.40: ya se está enviando (doble toque)
   err('err-paq', '');
   if (!S.guardia) { err('err-paq', 'Primero elige quién está de turno (en Hoy).'); return; }
   var casa = document.getElementById('pq-casa').value.trim(), desc = document.getElementById('pq-desc').value.trim();
@@ -1118,14 +1130,19 @@ function registrarPaquete() {
   if (!S.paqBlob) { err('err-paq', 'Toma la foto del paquete (toca 📷 Foto del paquete).'); return; }
   if (!S.paqCid) S.paqCid = nuevoCidPaq();
   var cid = S.paqCid;
+  S.paqEnviando = true;
   cargando(true, 'Registrando paquete…');
   blobADataURL(S.paqBlob).then(function (data) {
     var params = { token: S.token, guardia: S.guardia, casa: casa, descripcion: desc, foto: data, cid: cid };
-    // si se cae la red, se reintenta solo una vez (el id es el mismo: no se duplica)
+    // si se cae la red: espera, revisa si el servidor sí lo guardó y solo si no, reintenta una vez (mismo id: no se duplica)
     return llamar('paquete_nuevo', params).catch(function (e) {
       if (/contraseña|sesión|caseta|casa|turno/i.test(e.message)) throw e;
-      cargando(true, 'Reintentando…');
-      return new Promise(function (r) { setTimeout(r, 2500); }).then(function () { return llamar('paquete_nuevo', params); });
+      cargando(true, 'Revisando si sí se guardó…');
+      return new Promise(function (r) { setTimeout(r, 4000); }).then(function () { return paqueteYaGuardado(cid); }).then(function (ya) {
+        if (ya) return ya;
+        cargando(true, 'Reintentando…');
+        return llamar('paquete_nuevo', params);
+      });
     });
   }).then(function (r) {
     document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = ''; S.paqBlob = null; pintarMiniPaquete(); borrarBorradorPaq();
@@ -1135,7 +1152,7 @@ function registrarPaquete() {
   }).catch(function (e) {
     err('err-paq', 'NO se registró: ' + e.message + ' Tus datos y la foto siguen aquí; vuelve a tocar Registrar.');
     reportarErrorApp('paquete_nuevo', e.message);
-  }).finally(function () { cargando(false); });
+  }).finally(function () { S.paqEnviando = false; cargando(false); });
 }
 function avisoPaq(txt) {
   var e = document.getElementById('err-paq'); e.textContent = txt; e.style.display = 'block'; e.style.color = 'var(--verde, #1b7f3b)';
@@ -1143,7 +1160,7 @@ function avisoPaq(txt) {
 }
 // v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
 function reportarErrorApp(donde, msg) {
-  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.39', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
+  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.40', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
 }
 // Días que lleva un paquete en caseta (0 = llegó hoy)
 function diasEnCaseta(q) {
@@ -1207,14 +1224,16 @@ function pedirFotoEntrega(q) {
   inp.click();
 }
 function entregarPaquete(q) {
+  if (S.entregando) return;   // v3.40: doble toque en Confirmar entrega
   if (!S.guardia) { err('err-paq', 'Primero elige quién está de turno (en Hoy).'); return; }
   if (!S.entrega || S.entrega.id !== q.id) { err('err-paq', 'Toma la foto de a quién se le entrega el paquete.'); return; }
+  S.entregando = true;
   cargando(true, 'Guardando…');
   blobADataURL(S.entrega.blob).then(function (data) { return llamar('paquete_entregar', { token: S.token, guardia: S.guardia, id: q.id, foto: data }); }).then(function (r) {
     S.entrega = null;
     if (S.estado) { S.estado.paquetes = r.paquetes; S.estado.paquetes_hoy = r.paquetes_hoy || S.estado.paquetes_hoy; ls('cg_estado', JSON.stringify(S.estado)); }
     pintarPaquetes(r.paquetes || []);
-  }).catch(function (e) { err('err-paq', 'NO se guardó la entrega: ' + e.message + ' Vuelve a tocar Confirmar entrega.'); reportarErrorApp('paquete_entregar', e.message); }).finally(function () { cargando(false); });
+  }).catch(function (e) { err('err-paq', 'NO se guardó la entrega: ' + e.message + ' Vuelve a tocar Confirmar entrega.'); reportarErrorApp('paquete_entregar', e.message); }).finally(function () { S.entregando = false; cargando(false); });
 }
 // ---------- bitácora: notas de la jornada y alberca ----------
 function pintarBitacora(lista) {
