@@ -333,6 +333,8 @@
     <div class="card"><div class="inst" id="f-inst"></div><div class="mini" style="margin-top:8px">Sube la evidencia como: <b id="f-guardia"></b></div></div>
     <div id="f-fijas" style="display:none"></div>
     <div id="f-protos" style="display:none"></div>
+    <!-- v3.38: aviso con imagen (p. ej. residentes bloqueados) -->
+    <div id="f-lectura" style="display:none"><div class="card" style="padding:8px"><img id="f-lectura-img" alt="Aviso" style="width:100%;border-radius:10px;display:block"><div class="mini centro" style="margin-top:8px">Léelo con atención. Al tocar <b>Leído y enterado</b> queda registrado y el aviso se comparte al grupo.</div></div></div>
     <!-- v3.10: cambio de turno con 3 fotos -->
     <div id="f-relevo" style="display:none">
       <div class="card"><label style="margin-top:0">¿Quién ENTRA?</label><div class="chips" id="rv-entra"></div><label>¿Quién SALE?</label><div class="chips" id="rv-sale"></div></div>
@@ -451,7 +453,8 @@
         <label>Título</label><input id="c-titulo">
         <label>Qué debe hacer / qué foto mandar</label><textarea id="c-inst" rows="3"></textarea>
         <label>Tipo de evidencia</label>
-        <select id="c-tipo"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="estacionamiento">Estacionamiento de visitas (foto + cono → casa)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option><option value="aviso">Solo recordatorio (avisa a la hora, sin evidencia; p. ej. recorridos que se registran en otra app)</option></select>
+        <select id="c-tipo" onchange="tipoConsignaCambio()"><option value="foto">Foto obligatoria (puede agregar nota)</option><option value="texto">Reporte escrito (la foto es opcional)</option><option value="estacionamiento">Estacionamiento de visitas (foto + cono → casa)</option><option value="fijas">Palomear consignas fijas (leer y confirmar)</option><option value="protocolo">Leer protocolos (qué hacer en cada situación)</option><option value="paqueteria">Reporte de paquetería (lista de pendientes para el grupo)</option><option value="relevo">Cambio de turno (foto del que entra, del que sale y de la caseta)</option><option value="lectura">Leer aviso con imagen (el guardia confirma y se comparte la imagen al grupo)</option><option value="aviso">Solo recordatorio (avisa a la hora, sin evidencia; p. ej. recorridos que se registran en otra app)</option></select>
+        <div id="c-imagen-box" style="display:none"><label>Imagen del aviso</label><input type="file" id="c-imagen" accept="image/*" onchange="previaImagenConsigna(this)"><img id="c-imagen-prev" alt="" style="display:none;max-width:220px;margin-top:8px;border-radius:8px"><div class="mini">El guardia la ve en grande, toca "Leído y enterado" y esta imagen se manda al grupo.</div></div>
         <div class="mini">Los reportes escritos que no van al grupo te llegan a tu WhatsApp en cuanto el guardia los envía (ej. insumos que faltan, pendientes de residentes).</div>
         <label>Hora del aviso (24 h)</label><input id="c-hora" type="time">
         <label>Días</label>
@@ -1140,7 +1143,7 @@ function avisoPaq(txt) {
 }
 // v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
 function reportarErrorApp(donde, msg) {
-  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.38', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
+  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.36', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
 }
 // Días que lleva un paquete en caseta (0 = llegó hoy)
 function diasEnCaseta(q) {
@@ -1315,13 +1318,15 @@ function tarjetaAnterior(it) {
   d.querySelector('button').onclick = function () { abrirFoto(it); };
   return d;
 }
-function esTexto(it) { return it && (it.tipo === 'texto' || it.tipo === 'fijas' || it.tipo === 'protocolo' || it.tipo === 'paqueteria'); }
+function esTexto(it) { return it && (it.tipo === 'texto' || it.tipo === 'fijas' || it.tipo === 'protocolo' || it.tipo === 'paqueteria' || it.tipo === 'lectura'); }
+function esLectura(it) { return it && it.tipo === 'lectura'; }   // v3.38: aviso con imagen que se lee y se confirma
 function esPaq(it) { return it && it.tipo === 'paqueteria'; }
 function esRelevo(it) { return it && it.tipo === 'relevo'; }
 function esFijas(it) { return it && it.tipo === 'fijas'; }
 function esProto(it) { return it && it.tipo === 'protocolo'; }
 // Texto del botón según el tipo de consigna
 function accion(it, ahora) {
+  if (esLectura(it)) return '📢 Leer aviso';
   if (esProto(it)) return '📖 Leer los protocolos';
   if (esFijas(it)) return '✅ Palomear consignas fijas';
   if (esPaq(it)) return '📦 Enviar reporte de paquetería';
@@ -1409,12 +1414,16 @@ function abrirFoto(it, agregar) {
   var est = it.tipo === 'estacionamiento' && !agregar;
   document.getElementById('f-conos').style.display = est ? 'block' : 'none';
   if (est) pintarConos(it.conos_prev || []);
+  var lec = esLectura(it) && !agregar;
+  document.getElementById('f-lectura').style.display = lec ? 'block' : 'none';
+  if (lec) document.getElementById('f-lectura-img').src = it.imagen_ver || '';
   if (rv) { S.relevo = { entra: null, sale: (S.estado && S.estado.turno && S.estado.turno.guardia) || null, fotos: {} }; pintarRelevo(); }
   document.getElementById('f-nota-label').textContent = (fij || pro || est) ? 'Observación (opcional)' : paq ? 'Informe de paquetería del día (se llena solo: llegaron, entregados y los que quedan; puedes agregar algo abajo)' : texto ? 'Escribe el reporte' : 'Nota (opcional)';
   document.getElementById('nota').placeholder = '';
   document.getElementById('f-ayuda').textContent = paq ? 'Revisa la lista y toca Enviar. Después la mandas al grupo de la mesa directiva con el botón de WhatsApp.' : texto ? 'La foto es opcional. Escribe abajo lo que hay que reportar.' : 'Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.';
   document.getElementById('f-ayuda').style.display = (fij || pro) ? 'none' : 'block';
-  document.getElementById('f-fotos').style.display = (fij || pro || paq || rv) ? 'none' : '';
+  document.getElementById('f-fotos').style.display = (fij || pro || paq || rv || lec) ? 'none' : '';
+  if (lec) { document.getElementById('f-ayuda').style.display = 'none'; document.getElementById('f-nota-label').textContent = 'Observación (opcional)'; }
   if (rv) { document.getElementById('f-ayuda').style.display = 'none'; document.getElementById('f-nota-label').textContent = 'Novedades que se entregan (opcional)'; document.getElementById('nota').placeholder = ''; }
   document.getElementById('btn-enviar').disabled = false;
   document.getElementById('btn-enviar').textContent = texto ? '✔ Enviar reporte' : '✔ Enviar evidencia';
@@ -1448,11 +1457,7 @@ function fotoElegida(inp) {
   cargando(true, 'Preparando foto' + (files.length > 1 ? 's' : '') + '…');
   var cadena = Promise.resolve();
   files.forEach(function (f) { cadena = cadena.then(function () { return comprimir(f, 1024, 0.68).then(function (b) { S.blobs.push(b); }); }); });
-  cadena.then(function () { pintarMiniaturas(); }).catch(function (e) {
-    pintarMiniaturas();   // v3.38: las que sí se prepararon se quedan
-    err('err-foto', 'No se pudo preparar la foto: ' + e.message + '. Intenta tomarla otra vez.');
-    reportarErrorApp('preparar foto · ' + ((S.actual && S.actual.titulo) || ''), e.message + ' · llevaba ' + S.blobs.length + ' · ' + files.length + ' nueva(s) · ' + Math.round((files[0] && files[0].size || 0) / 1024) + ' KB');
-  }).finally(function () { cargando(false); inp.value = ''; });
+  cadena.then(function () { pintarMiniaturas(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
 }
 function pintarMiniaturas() {
   var g = document.getElementById('f-miniaturas'); g.innerHTML = '';
@@ -1465,6 +1470,7 @@ function pintarMiniaturas() {
   var texto = esTexto(S.actual) && !S.modoAgregar;
   if (esRelevo(S.actual) && !S.modoAgregar) { document.getElementById('f-detalle').style.display = 'block'; return; }
   document.getElementById('f-detalle').style.display = S.blobs.length || texto ? 'block' : 'none';
+  if (esLectura(S.actual) && !S.modoAgregar) { document.getElementById('btn-enviar').textContent = '✔ Leído y enterado'; return; }
   if (esProto(S.actual) && !S.modoAgregar) { contarProtocolos(); return; }
   if (esFijas(S.actual) && !S.modoAgregar) { contarFijas(); return; }
   var minF = !S.modoAgregar ? (+(S.actual && S.actual.min_fotos) || 0) : 0;
@@ -1524,11 +1530,9 @@ function contarProtocolos() {
 function blobADataURL(b) { return new Promise(function (res, rej) { var rd = new FileReader(); rd.onload = function () { res(rd.result); }; rd.onerror = rej; rd.readAsDataURL(b); }); }
 // v3.37: en celulares de gama media (Samsung A07) la foto de la cámara se decodifica ya reducida y fuera del hilo principal
 // (createImageBitmap con resizeWidth): no congela la pantalla ni gasta 100-200 MB de memoria por foto.
-// v3.38: con límite de tiempo; si el método rápido se traba (algunos Samsung), se usa el normal
-function conLimite(pr, ms, msg) { return Promise.race([pr, new Promise(function (_, j) { setTimeout(function () { j(new Error(msg)); }, ms); })]); }
 function comprimir(file, max, calidad) {
   if (window.createImageBitmap) {
-    return conLimite(createImageBitmap(file, { resizeWidth: max, resizeQuality: 'medium', imageOrientation: 'from-image' }), 12000, 'bitmap lento').then(function (bm) {
+    return createImageBitmap(file, { resizeWidth: max, resizeQuality: 'medium', imageOrientation: 'from-image' }).then(function (bm) {
       var e2 = Math.min(1, max / Math.max(bm.width, bm.height)), c = document.createElement('canvas'); c.width = Math.round(bm.width * e2); c.height = Math.round(bm.height * e2);
       c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height); try { bm.close(); } catch (e) {}
       return new Promise(function (r2, j2) { c.toBlob(function (b) { c.width = c.height = 0; b ? r2(b) : j2(new Error('canvas')); }, 'image/jpeg', calidad); });
@@ -1537,9 +1541,6 @@ function comprimir(file, max, calidad) {
   return comprimirImg_(file, max, calidad);
 }
 function comprimirImg_(file, max, calidad) {
-  return conLimite(comprimirImg0_(file, max, calidad), 25000, 'la foto tardó demasiado en prepararse');
-}
-function comprimirImg0_(file, max, calidad) {
   return new Promise(function (res, rej) {
     var img = new Image(); var u = URL.createObjectURL(file);
     img.onload = function () {
@@ -1569,6 +1570,7 @@ function enviar() {
   // v3.35: mínimo de fotos de la consigna
   var minF = +(S.actual && S.actual.min_fotos) || 0;
   if (minF > 1 && !S.modoAgregar && S.blobs.length < minF) return err('err-foto', 'Esta consigna pide mínimo ' + minF + ' fotos. Llevas ' + S.blobs.length + '; toma ' + (minF - S.blobs.length) + ' más.');
+  if (esLectura(S.actual) && !S.modoAgregar) nota = 'Leído y enterado.' + (nota ? ' Observación: ' + nota : '');   // v3.38
   if (fij) {
     var lista = (S.estado && S.estado.fijas) || [];
     var cajas = Array.prototype.slice.call(document.querySelectorAll('#f-fijas input'));
@@ -1599,7 +1601,7 @@ function enviar() {
     S.blobs = [R.fotos.entra, R.fotos.sale].concat(R.fotos.caseta ? [R.fotos.caseta] : []);   // v3.30: la de la caseta es opcional
     nota = 'Entra: ' + R.entra + ' · Sale: ' + R.sale + (nota ? '\nNovedades: ' + nota : '');
   }
-  var btn = document.getElementById('btn-enviar'); btn.disabled = true; S._subioOk = false;
+  var btn = document.getElementById('btn-enviar'); btn.disabled = true;
   cargando(true, 'Enviando ' + ((fij || pro) ? 'confirmación' : S.blobs.length > 1 ? S.blobs.length + ' fotos' : texto ? 'reporte' : 'evidencia') + '…');
   Promise.all(S.blobs.map(blobADataURL)).then(function (datas) {
     var params = { token: S.token, consigna_id: S.actual.consigna_id, guardia: (rv && S.relevo && S.relevo.entra) ? S.relevo.entra : S.guardia, fotos: datas, agregar: S.modoAgregar, fecha: S.actual.fecha || undefined, nota: nota, conos: conos };
@@ -1610,7 +1612,6 @@ function enviar() {
       return new Promise(function (r) { setTimeout(r, 3000); }).then(function () { return llamar('subir', params); });
     })
       .then(function (r) {
-        S._subioOk = true;   // v3.38: el servidor ya guardó la evidencia
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
         S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
@@ -1621,7 +1622,7 @@ function enviar() {
         // v3.1.1: solo las consignas marcadas por el administrador se comparten al grupo; las demás son internas de GECEM
         document.getElementById('l-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
         document.getElementById('l-aviso-grupo').style.display = S.actual.compartir_grupo ? 'block' : 'none';
-        var ngEl = document.getElementById('l-nombre-grupo'); if (ngEl) ngEl.textContent = S.caseta.grupo || 'Mesa Directiva';   // v3.38: puede no existir si el aviso ya se reescribió
+        document.getElementById('l-nombre-grupo').textContent = S.caseta.grupo || 'Mesa Directiva';
         document.getElementById('l-compartido').textContent = '';
         // v3.16: si el puente la va a publicar solo, no hay que mandarla a mano
         document.getElementById('l-aviso-grupo').innerHTML = r.auto_grupo ? '🤖 <b>Se está enviando sola al grupo de la mesa directiva.</b> No tienes que hacer nada; si en unos minutos no aparece, mándala a mano con el botón.' : 'Esta consigna la pide la mesa directiva. Mándala al grupo de WhatsApp <b id="l-nombre-grupo">' + esc(S.caseta.grupo || 'Mesa Directiva') + '</b>.';
@@ -1637,11 +1638,6 @@ function enviar() {
         ir('p-listo');
       });
   }).catch(function (e) {
-    if (S._subioOk) {   // v3.38: se subió bien y solo falló algo de la pantalla: no asustar al guardia ni duplicar
-      reportarErrorApp('pantalla-listo · ' + ((S.actual && S.actual.titulo) || ''), e.message);
-      try { document.getElementById('l-titulo').textContent = 'Evidencia guardada'; } catch (e2) {}
-      ir('p-listo'); return;
-    }
     err('err-foto', 'NO se envió: ' + e.message + ' Tus fotos siguen aquí; vuelve a tocar Enviar.');
     reportarErrorApp('subir · ' + ((S.actual && S.actual.titulo) || ''), e.message + ' · ' + S.blobs.length + ' foto(s)');
   }).finally(function () { cargando(false); btn.disabled = false; });
@@ -1791,7 +1787,7 @@ function editarConsigna(k) {
   document.getElementById('c-caseta').value = k ? k.caseta_id : casetaCons();
   document.getElementById('c-titulo').value = k ? k.titulo : '';
   document.getElementById('c-inst').value = k ? k.instruccion : '';
-  document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo','paqueteria','relevo','aviso','estacionamiento'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
+  document.getElementById('c-tipo').value = k && ['texto','fijas','protocolo','paqueteria','relevo','aviso','estacionamiento','lectura'].indexOf(String(k.tipo)) >= 0 ? String(k.tipo) : 'foto';
   document.getElementById('c-hora').value = k ? String(k.hora) : '';
   document.getElementById('c-tol').value = k ? k.tolerancia_min : 30;
   document.getElementById('c-lim').value = k ? k.limite_min : 120;
@@ -1799,6 +1795,9 @@ function editarConsigna(k) {
   document.getElementById('c-max').value = k ? k.max_avisos : 3;
   document.getElementById('c-ant').value = k ? k.anticipacion_min : 60;
   document.getElementById('c-minf').value = k ? (+k.min_fotos || 0) : 0;
+  S.imgConsigna = null; document.getElementById('c-imagen').value = '';
+  var pv = document.getElementById('c-imagen-prev'); pv.src = k && k.imagen_id ? 'https://drive.google.com/thumbnail?id=' + k.imagen_id + '&sz=w600' : ''; pv.style.display = k && k.imagen_id ? 'block' : 'none';
+  setTimeout(tipoConsignaCambio, 0);
   document.getElementById('c-grupo').checked = k ? String(k.compartir_grupo) === 'si' : false;
   document.getElementById('c-activa').checked = k ? String(k.activa) === 'si' : true;
   var dias = k ? String(k.dias) : 'LMXJVSD', dd = document.getElementById('c-dias'); dd.innerHTML = '';
@@ -1814,9 +1813,18 @@ function guardarConsigna() {
   if (!k.titulo || !k.hora) return err('err-cons', 'Falta el título o la hora.');
   if (!dias) return err('err-cons', 'Elige al menos un día.');
   if (k.limite_min < k.tolerancia_min) return err('err-cons', 'El límite debe ser mayor que los minutos para cumplir.');
+  if (k.tipo === 'lectura' && !S.imgConsigna && !(consignaEd && consignaEd.imagen_id)) return err('err-cons', 'Sube la imagen del aviso.');
+  if (k.tipo === 'lectura' && S.imgConsigna) k.imagen = S.imgConsigna;
   cargando(true, 'Guardando…');
   llamar('admin_consigna', { token: S.adminToken, consigna: k }).then(cargarAdmin).then(function () { document.getElementById('form-cons').style.display = 'none'; })
     .catch(function (e) { err('err-cons', e.message); }).finally(function () { cargando(false); });
+}
+// v3.38: imagen de los avisos de lectura
+function tipoConsignaCambio() { var b = document.getElementById('c-imagen-box'); if (b) b.style.display = document.getElementById('c-tipo').value === 'lectura' ? 'block' : 'none'; }
+function previaImagenConsigna(inp) {
+  var f = inp.files && inp.files[0]; if (!f) return;
+  comprimir(f, 1600, 0.85).then(blobADataURL).then(function (d) { S.imgConsigna = d; var pv = document.getElementById('c-imagen-prev'); pv.src = d; pv.style.display = 'block'; })
+    .catch(function (e) { err('err-cons', 'No se pudo leer la imagen: ' + e.message); });
 }
 function borrarConsigna() {
   if (!consignaEd || !confirm('¿Borrar la consigna "' + consignaEd.titulo + '"? El historial de evidencias se conserva.')) return;
