@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.41 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.42 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -837,6 +837,7 @@ function cargarEstado(manual, arranque) {
     // de ANTES y lo "borraba" (o lo revivía) hasta la siguiente actualización. Se conserva la lista que ya tiene el celular.
     if (S.estado && (S.paqOcupado > 0 || pedidoEn < (S.paqUltimaOp || 0))) { r.paquetes = S.estado.paquetes || r.paquetes; r.paquetes_hoy = S.estado.paquetes_hoy || r.paquetes_hoy; }
     S.estado = r; S.estadoEn = Date.now(); S.caseta = r.caseta; pintarInicio(); revisarAlarma();
+    try { mandarErroresPendientes(); } catch (x) {}   // v3.42
     ls('cg_estado', JSON.stringify(r));
     err('err-inicio', '');
   }).catch(function (e) {
@@ -1170,7 +1171,15 @@ function avisoPaq(txt) {
 }
 // v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
 function reportarErrorApp(donde, msg) {
-  try { llamar('error_app', { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.41', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120) }).catch(function () {}); } catch (e) {}
+  // v3.42: si no hay señal, el error se guarda en el celular y se manda en cuanto vuelva la conexión
+  var e = { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.42', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120), cuando: new Date().toTimeString().slice(0, 5) };
+  try { llamar('error_app', e).catch(function () { guardarErrorPendiente(e); }); } catch (x) { guardarErrorPendiente(e); }
+}
+function guardarErrorPendiente(e) { try { var l = JSON.parse(ls('cg_err_cola') || '[]'); l.push(e); ls('cg_err_cola', JSON.stringify(l.slice(-10))); } catch (x) {} }
+function mandarErroresPendientes() {
+  var l = []; try { l = JSON.parse(ls('cg_err_cola') || '[]'); } catch (x) {}
+  if (!l.length) return; ls('cg_err_cola', null);
+  l.forEach(function (e) { e.msg = '(sin señal ' + (e.cuando || '') + ') ' + e.msg; llamar('error_app', e).catch(function () {}); });
 }
 // Días que lleva un paquete en caseta (0 = llegó hoy)
 function diasEnCaseta(q) {
