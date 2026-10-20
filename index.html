@@ -235,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.42 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.44 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -298,11 +298,14 @@
         <input type="file" id="pq-archivo" accept="image/*" capture="environment" style="display:none" onchange="paqueteFotoElegida(this)">
         <input type="file" id="pq-galeria" accept="image/*" style="display:none" onchange="paqueteFotoElegida(this)">
         <div id="pq-minis" class="minis"></div>
+        <!-- v3.43: dos opciones claras para la foto: cámara directa o galería -->
         <div class="dos">
-          <button class="btn sec chico" id="pq-btn-foto" onclick="document.getElementById('pq-archivo').click()">📷 Foto del paquete</button>
-          <button class="btn chico" onclick="registrarPaquete()">📦 Registrar paquete</button>
+          <button class="btn sec chico" id="pq-btn-foto" onclick="fotoPaqDesde('camara')">📷 Tomar foto</button>
+          <button class="btn sec chico" id="pq-btn-galeria" onclick="fotoPaqDesde('galeria')">🖼 Galería</button>
         </div>
-        <div class="mini centro"><a href="#" onclick="document.getElementById('pq-galeria').click();return false">🖼 Si la cámara no abre o se cierra la app, toma la foto con la cámara normal y elígela de la galería aquí</a></div>
+        <button class="btn chico" onclick="registrarPaquete()">📦 Registrar paquete</button>
+        <div class="mini centro" id="pq-copia-nota" style="display:none"></div>
+        <div class="mini">💡 <b>Si la cámara se traba o se cierra la app:</b> toma la foto con la cámara normal del celular y luego tócale <b>🖼 Galería</b> y elígela. Cada foto que tomes aquí también se guarda en <b>Descargas</b> del celular, por si hay que volver a subirla.</div>
         <div class="mini">Primero la casa, luego la foto del paquete (que se vea la etiqueta) y al final <b>Registrar</b>. Al entregarlo, toca <b>Entregado</b>, toma la foto de quien lo recibe y confirma: desaparece de pendientes pero queda en el historial con las dos fotos, la hora y quién lo entregó.</div>
         <div class="error" id="err-paq"></div>
       </div>
@@ -1059,15 +1062,16 @@ function pintarPaquetes(lista) {
     d.innerHTML = '<div class="fila"><div style="display:flex;gap:10px;align-items:center">' + ((S.fotoLocal && S.fotoLocal[q.id]) || q.foto_mini ? '<a href="' + esc(q.foto_ver || '#') + '" target="_blank" rel="noopener"><img src="' + esc((S.fotoLocal && S.fotoLocal[q.id]) || q.foto_mini) + '" data-mini="' + esc(q.foto_mini || '') + '" alt="📦" style="width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--borde);display:block;background:#eef2f6"></a>' : '') + '<div><div class="titulo">Casa ' + esc(q.casa) + '</div><div class="mini">' + (q.descripcion ? esc(q.descripcion) + ' · ' : '') + 'llegó ' + esc(q.hora_llegada) + dias + ' · recibió ' + esc(q.recibio) + '</div></div></div>' +
       '<button class="btn verde chico" style="width:auto;margin:0;padding:10px 14px">✔ Entregado</button></div>' +
       // v3.7: para entregar hay que tomar foto de a quién se le entrega
-      (S.entrega && S.entrega.id === q.id ? '<div class="mini" style="margin-top:8px;font-weight:700">Foto de la entrega (quién lo recibe):</div><div class="minis" id="pq-entrega-minis"></div><div class="dos"><button class="btn sec chico" data-a="otra">📷 Otra foto</button><button class="btn verde chico" data-a="ok">✔ Confirmar entrega</button></div><button class="btn sec chico" data-a="no">Cancelar</button>' : '');
-    d.querySelector('button').onclick = function () { pedirFotoEntrega(q); };
+      (S.entrega && S.entrega.id === q.id ? '<div class="mini" style="margin-top:8px;font-weight:700">Foto de la entrega (quién lo recibe):</div><div class="minis" id="pq-entrega-minis"></div><div class="dos"><button class="btn sec chico" data-a="otra">📷 ' + (S.entrega.blob ? 'Otra foto' : 'Tomar foto') + '</button><button class="btn sec chico" data-a="gal">🖼 Galería</button></div>' + (S.entrega.blob ? '<button class="btn verde chico" data-a="ok">✔ Confirmar entrega</button>' : '<div class="mini">Si la cámara se traba, toma la foto con la cámara normal y elígela con 🖼 Galería.</div>') + '<button class="btn sec chico" data-a="no">Cancelar</button>' : '');
+    d.querySelector('button').onclick = function () { if (!S.guardia) { err('err-paq', 'Primero elige quién está de turno (en Hoy).'); return; } err('err-paq', ''); S.entrega = { id: q.id, blob: null }; pintarPaquetes((S.estado && S.estado.paquetes) || []); };
     // v3.41: si la miniatura de Drive no carga (recién subida o red lenta), se reintenta 2 veces; si no, queda un ícono que abre la foto
     var imq = d.querySelector('img[data-mini]');
     if (imq) { imq.dataset.intentos = '0'; imq.onerror = function () { var n = +this.dataset.intentos + 1; this.dataset.intentos = String(n); var me = this, base = this.dataset.mini; if (n <= 2 && base) setTimeout(function () { me.src = base + '&t=' + Date.now(); }, 3000 * n); else { this.onerror = null; this.removeAttribute('src'); this.style.display = 'none'; var a = this.parentNode; if (a && !a.querySelector('.sinmini')) { var sp = document.createElement('span'); sp.className = 'sinmini'; sp.textContent = '📷'; sp.style.cssText = 'display:flex;width:56px;height:56px;align-items:center;justify-content:center;font-size:26px;border:1px solid var(--borde);border-radius:10px;background:#eef2f6'; a.appendChild(sp); } } }; }
     if (S.entrega && S.entrega.id === q.id) {
-      var m = d.querySelector('#pq-entrega-minis'), mf = document.createElement('div'); mf.className = 'mini-f'; var im = document.createElement('img'); im.src = URL.createObjectURL(S.entrega.blob); mf.appendChild(im); m.appendChild(mf);
-      d.querySelector('[data-a="otra"]').onclick = function () { pedirFotoEntrega(q); };
-      d.querySelector('[data-a="ok"]').onclick = function () { entregarPaquete(q); };
+      if (S.entrega.blob) { var m = d.querySelector('#pq-entrega-minis'), mf = document.createElement('div'); mf.className = 'mini-f'; var im = document.createElement('img'); im.src = URL.createObjectURL(S.entrega.blob); mf.appendChild(im); m.appendChild(mf); }
+      d.querySelector('[data-a="otra"]').onclick = function () { pedirFotoEntrega(q, false); };
+      d.querySelector('[data-a="gal"]').onclick = function () { pedirFotoEntrega(q, true); };
+      var bok = d.querySelector('[data-a="ok"]'); if (bok) bok.onclick = function () { entregarPaquete(q); };
       d.querySelector('[data-a="no"]').onclick = function () { S.entrega = null; pintarPaquetes((S.estado && S.estado.paquetes) || []); };
     }
     el.appendChild(d);
@@ -1099,19 +1103,36 @@ function restaurarBorradorPaq() {
     return Date.now() - (b.t || 0) < 15 * 60000;   // reciente: se abre directo en Paquetería
   } catch (e) { return false; }
 }
+// v3.43: de dónde viene la foto (cámara o galería). Si viene de la cámara se guarda una copia en Descargas del celular
+// (en Samsung se ve en Galería > Descargas o en Mis archivos) para poder elegirla después desde Galería si algo se traba.
+S.fotoOrigen = 'camara';
+function fotoPaqDesde(origen) { S.fotoOrigen = origen; guardarBorradorPaq(); document.getElementById(origen === 'galeria' ? 'pq-galeria' : 'pq-archivo').click(); }
+function guardarCopiaFoto(blob, nombre) {
+  try {
+    var u = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = u; a.download = nombre; a.style.display = 'none'; document.body.appendChild(a); a.click();
+    setTimeout(function () { try { URL.revokeObjectURL(u); a.remove(); } catch (e) {} }, 60000);
+    return true;
+  } catch (e) { return false; }
+}
+function nombreFoto(pref, casa) { var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; }; return pref + '_casa' + String(casa || 'x').replace(/[^0-9A-Za-z]/g, '') + '_' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '_' + z(d.getHours()) + z(d.getMinutes()) + '.jpg'; }
 function paqueteFotoElegida(inp) {
   var f = inp.files && inp.files[0]; if (!f) return;
+  var deCamara = inp.id === 'pq-archivo';
   err('err-paq', '');
   cargando(true, 'Preparando foto…');
   comprimir(f, 1024, 0.68).then(function (b) {
     S.paqBlob = b; pintarMiniPaquete();
+    var nota = document.getElementById('pq-copia-nota');
+    if (deCamara && guardarCopiaFoto(b, nombreFoto('paquete', document.getElementById('pq-casa').value))) { nota.innerHTML = '📥 Copia de la foto guardada en <b>Descargas</b> del celular.'; nota.style.display = ''; }
+    else nota.style.display = 'none';
     return blobADataURL(b).then(function (d) { guardarBorradorPaq(d.length < 1500000 ? d : ''); });
   }).catch(function (e) { err('err-paq', 'No se pudo leer la foto (' + e.message + '). Intenta de nuevo o elígela de la galería.'); reportarErrorApp('paquete_foto', e.message + ' · ' + (f.type || '?') + ' ' + Math.round((f.size || 0) / 1024) + 'KB'); })
     .finally(function () { cargando(false); inp.value = ''; });
 }
 function pintarMiniPaquete() {
   var g = document.getElementById('pq-minis'); g.innerHTML = '';
-  document.getElementById('pq-btn-foto').textContent = S.paqBlob ? '📷 Otra foto' : '📷 Foto del paquete';
+  document.getElementById('pq-btn-foto').textContent = S.paqBlob ? '📷 Otra foto' : '📷 Tomar foto';
   if (!S.paqBlob) return;
   var d = document.createElement('div'); d.className = 'mini-f';
   var im = document.createElement('img'); im.src = URL.createObjectURL(S.paqBlob); d.appendChild(im);
@@ -1156,7 +1177,7 @@ function registrarPaquete() {
   }).then(function (r) {
     try { S.fotoLocal[cid] = URL.createObjectURL(blobLocal); } catch (e) {}   // v3.41: se ve la foto al instante, sin esperar a Drive
     S.paqUltimaOp = Date.now();
-    document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = ''; S.paqBlob = null; pintarMiniPaquete(); borrarBorradorPaq();
+    document.getElementById('pq-casa').value = ''; document.getElementById('pq-desc').value = ''; S.paqBlob = null; pintarMiniPaquete(); borrarBorradorPaq(); var _cn = document.getElementById('pq-copia-nota'); if (_cn) _cn.style.display = 'none';
     if (S.estado) { S.estado.paquetes = r.paquetes; S.estado.paquetes_hoy = r.paquetes_hoy || S.estado.paquetes_hoy; ls('cg_estado', JSON.stringify(S.estado)); }
     pintarPaquetes(r.paquetes || []);
     avisoPaq('✅ Paquete de la casa ' + casa + ' registrado.');
@@ -1172,7 +1193,7 @@ function avisoPaq(txt) {
 // v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
 function reportarErrorApp(donde, msg) {
   // v3.42: si no hay señal, el error se guarda en el celular y se manda en cuanto vuelva la conexión
-  var e = { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.42', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120), cuando: new Date().toTimeString().slice(0, 5) };
+  var e = { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.44', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120), cuando: new Date().toTimeString().slice(0, 5) };
   try { llamar('error_app', e).catch(function () { guardarErrorPendiente(e); }); } catch (x) { guardarErrorPendiente(e); }
 }
 function guardarErrorPendiente(e) { try { var l = JSON.parse(ls('cg_err_cola') || '[]'); l.push(e); ls('cg_err_cola', JSON.stringify(l.slice(-10))); } catch (x) {} }
@@ -1229,15 +1250,17 @@ function compartirPaquetes() {
 }
 // v3.7: la entrega lleva foto obligatoria de quien recibe el paquete
 S.entrega = null;
-function pedirFotoEntrega(q) {
+function pedirFotoEntrega(q, galeria) {
   err('err-paq', '');
   if (!S.guardia) { err('err-paq', 'Primero elige quién está de turno (en Hoy).'); return; }
-  var inp = document.getElementById('pq-entrega-archivo');
-  if (!inp) { inp = document.createElement('input'); inp.type = 'file'; inp.id = 'pq-entrega-archivo'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment'); inp.style.display = 'none'; document.body.appendChild(inp); }
+  // v3.43: un input para cámara y otro para galería
+  var idi = galeria ? 'pq-entrega-galeria' : 'pq-entrega-archivo';
+  var inp = document.getElementById(idi);
+  if (!inp) { inp = document.createElement('input'); inp.type = 'file'; inp.id = idi; inp.accept = 'image/*'; if (!galeria) inp.setAttribute('capture', 'environment'); inp.style.display = 'none'; document.body.appendChild(inp); }
   inp.onchange = function () {
     var f = inp.files && inp.files[0]; if (!f) return;
     cargando(true, 'Preparando foto…');
-    comprimir(f, 1024, 0.68).then(function (b) { S.entrega = { id: q.id, blob: b }; pintarPaquetes((S.estado && S.estado.paquetes) || []); })
+    comprimir(f, 1024, 0.68).then(function (b) { S.entrega = { id: q.id, blob: b }; if (!galeria) guardarCopiaFoto(b, nombreFoto('entrega', q.casa)); pintarPaquetes((S.estado && S.estado.paquetes) || []); })
       .catch(function (e) { err('err-paq', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
   };
   inp.click();
@@ -1245,7 +1268,7 @@ function pedirFotoEntrega(q) {
 function entregarPaquete(q) {
   if (S.entregando) return;   // v3.40: doble toque en Confirmar entrega
   if (!S.guardia) { err('err-paq', 'Primero elige quién está de turno (en Hoy).'); return; }
-  if (!S.entrega || S.entrega.id !== q.id) { err('err-paq', 'Toma la foto de a quién se le entrega el paquete.'); return; }
+  if (!S.entrega || S.entrega.id !== q.id || !S.entrega.blob) { err('err-paq', 'Toma la foto de a quién se le entrega el paquete.'); return; }
   S.entregando = true; S.paqOcupado = (S.paqOcupado || 0) + 1;
   cargando(true, 'Guardando…');
   blobADataURL(S.entrega.blob).then(function (data) { return llamar('paquete_entregar', { token: S.token, guardia: S.guardia, id: q.id, foto: data }); }).then(function (r) {
@@ -1409,7 +1432,7 @@ function textoDe(it, fecha) {
   var f = String(fecha || '').split('-').reverse().join('/');
   var n = (it.fotos || []).length;
   // v3.3.1: texto corto para el grupo (sin lista de fijas ni link de la foto)
-  return '✅ *' + it.titulo + '* — ' + S.caseta.nombre + '\n' + f.slice(0, 5) + ' ' + String(it.subida || '').slice(11) + ' · ' + (it.guardia || '') + (it.nota ? '\n' + notaCorta(it.nota, esFijas(it) || esProto(it)) : '') + (esFijas(it) && S.caseta.link_fijas ? '\nVer las consignas: ' + S.caseta.link_fijas : '');
+  return '✅ *' + it.titulo + '* — ' + S.caseta.nombre + '\n' + f.slice(0, 5) + ' ' + String(it.subida || '').slice(11) + ' · ' + (it.guardia || '') + (it.nota ? '\n' + notaCorta(it.nota, esFijas(it) || esProto(it)) : '') + (esFijas(it) && S.caseta.link_fijas && !((it.fotos || []).length || it.foto_id) ? '\nVer las consignas: ' + S.caseta.link_fijas : '');
 }
 function notaCorta(nota, lista) {
   var lineas = String(nota).split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
@@ -1611,6 +1634,39 @@ function comprimirImg0_(file, max, calidad) {
     img.src = u;
   });
 }
+// v3.44: imagen de las consignas fijas (estilo del aviso de bloqueados) para que la mesa directiva la vea sin abrir links
+function imagenFijas(lista) {
+  return new Promise(function (res, rej) {
+    try {
+      var W = 1080, P = 64, cv = document.createElement('canvas'), g = cv.getContext('2d'), F = 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
+      var envolver = function (txt, ancho, font) { g.font = font; var pal = String(txt).split(/\s+/), lin = [], act = ''; pal.forEach(function (w) { var t = act ? act + ' ' + w : w; if (g.measureText(t).width > ancho && act) { lin.push(act); act = w; } else act = t; }); if (act) lin.push(act); return lin; };
+      var fItem = '500 40px ' + F, alto = 52, bloques = lista.map(function (f) { return envolver(f.texto, W - P * 2 - 110, fItem); });
+      var H = 250 + 40 + bloques.reduce(function (a, l) { return a + Math.max(1, l.length) * alto + 56; }, 0) + 190;
+      cv.width = W; cv.height = H;
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#0f2a44'; g.fillRect(0, 0, W, 250);
+      g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+      g.font = '800 84px ' + F; g.fillText('CONSIGNAS FIJAS', W / 2, 130);
+      g.font = '500 44px ' + F; g.fillText(String((S.caseta && S.caseta.nombre) || ''), W / 2, 200);
+      var y = 290; g.textAlign = 'left';
+      bloques.forEach(function (lin, i) {
+        var h = Math.max(1, lin.length) * alto + 28;
+        g.fillStyle = '#eef3f8'; if (g.roundRect) { g.beginPath(); g.roundRect(P - 16, y, W - (P - 16) * 2, h, 22); g.fill(); } else g.fillRect(P - 16, y, W - (P - 16) * 2, h);
+        g.fillStyle = '#c8161e'; g.beginPath(); g.arc(P + 34, y + 14 + alto / 2, 32, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#ffffff'; g.font = '800 36px ' + F; g.textAlign = 'center'; g.fillText(String(i + 1), P + 34, y + 14 + alto / 2 + 13);
+        g.textAlign = 'left'; g.fillStyle = '#1d1d1f'; g.font = fItem;
+        lin.forEach(function (l, j) { g.fillText(l, P + 96, y + 14 + alto * (j + 1) - 12); });
+        y += h + 28;
+      });
+      var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; };
+      g.textAlign = 'center'; g.fillStyle = '#3a3a3c'; g.font = '600 38px ' + F;
+      g.fillText('Leídas y confirmadas por ' + (S.guardia || 'el guardia'), W / 2, y + 60);
+      g.fillStyle = '#6e6e73'; g.font = '400 32px ' + F;
+      g.fillText(z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ' · Vigilancia GECEM', W / 2, y + 112);
+      cv.toBlob(function (b) { b ? res(b) : rej(new Error('canvas vacío')); }, 'image/jpeg', 0.85);
+    } catch (e) { rej(e); }
+  });
+}
 function enviar() {
   var texto = esTexto(S.actual) && !S.modoAgregar, fij = esFijas(S.actual) && !S.modoAgregar, pro = esProto(S.actual) && !S.modoAgregar, nota = document.getElementById('nota').value.trim();
   if (!S.blobs.length && !texto && !(esRelevo(S.actual) && !S.modoAgregar)) return err('err-foto', 'Primero toma la foto.');
@@ -1623,6 +1679,12 @@ function enviar() {
     var cajas = Array.prototype.slice.call(document.querySelectorAll('#f-fijas input'));
     if (!cajas.length || cajas.some(function (x) { return !x.checked; })) return err('err-foto', 'Palomea todas las consignas fijas antes de confirmar.');
     nota = 'Leídas y confirmadas ' + lista.length + ' consignas fijas:\n' + lista.map(function (f) { return '• ' + f.texto; }).join('\n') + (nota ? '\nObservación: ' + nota : '');
+    // v3.44: se arma una imagen con la lista vigente; va como foto de la evidencia y así llega al grupo como imagen (no como link)
+    if (!S.blobs.some(function (b) { return b._fijas; }) && !S._sinImgFijas) {
+      cargando(true, 'Preparando imagen…');
+      return imagenFijas(lista).then(function (b) { b._fijas = true; S.blobs.unshift(b); }).catch(function (e) { S._sinImgFijas = true; reportarErrorApp('imagen_fijas', e.message); })
+        .then(function () { cargando(false); enviar(); });
+    }
   }
   if (pro) {
     var lp = (S.estado && S.estado.protocolos) || [];
@@ -1660,6 +1722,7 @@ function enviar() {
     })
       .then(function (r) {
         S._subioOk = true;   // v3.38: el servidor ya guardó la evidencia
+        S._sinImgFijas = false;
         // guardar en caché las fotos nuevas (las últimas N de la lista)
         var nuevas = r.fotos.slice(r.fotos.length - S.blobs.length); nuevas.forEach(function (f, i) { cacheFotos[f.id] = S.blobs[i]; });
         S.ultimo = { r: r, it: Object.assign({}, S.actual, { fotos: r.fotos, foto_id: r.foto_id, foto_corta: r.foto_corta, foto_ver: r.foto_ver, evidencia_id: r.evidencia_id, guardia: S.guardia, subida: r.subida, nota: r.nota }), blob: S.blobs[0] };
