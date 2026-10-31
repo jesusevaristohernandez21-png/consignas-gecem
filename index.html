@@ -87,24 +87,6 @@
   .hora{font-weight:800;font-size:22px;color:var(--azul)}
   .etiqueta{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;margin-top:6px}
   .etiqueta.rojo{background:var(--rojo);color:#fff}.etiqueta.verde{background:var(--verde);color:#fff}.etiqueta.ambar{background:var(--ambar);color:#fff}.etiqueta.gris{background:#d1d5db;color:#111}.etiqueta.azul{background:var(--azul2);color:#fff}
-  /* v3.45: cámara dentro de la app */
-  #cam{position:fixed;inset:0;z-index:80;background:#000;display:none;flex-direction:column}
-  #cam.on{display:flex}
-  #cam video{flex:1;width:100%;min-height:0;object-fit:cover;background:#000}
-  #cam .cam-top{position:absolute;top:0;left:0;right:0;padding:14px 16px;color:#fff;font-weight:800;font-size:17px;background:linear-gradient(rgba(0,0,0,.65),rgba(0,0,0,0));display:flex;justify-content:space-between;gap:10px}
-  #cam .cam-msg{position:absolute;top:40%;left:16px;right:16px;text-align:center;color:#fff;font-size:17px;font-weight:700}
-  #cam .cam-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 16px calc(12px + env(safe-area-inset-bottom));background:#000}
-  #cam .cam-bar button{border:0;border-radius:12px;font-weight:800;font-size:16px;padding:14px 10px;min-width:100px;cursor:pointer}
-  #cam .cam-cancel{background:#374151;color:#fff}
-  #cam .cam-ok{background:var(--verde);color:#fff}
-  #cam .cam-ok:disabled{opacity:.35}
-  #cam .cam-shot{width:78px;height:78px;min-width:78px!important;border-radius:50%!important;background:#fff;border:6px solid #9ca3af!important;padding:0!important}
-  #cam .cam-shot:active{background:#d1d5db}
-  #cam .cam-shot:disabled{opacity:.4}
-  #cam .cam-alt{color:#cbd5e1;text-align:center;font-size:14px;padding:4px 16px 14px;background:#000;text-decoration:underline}
-  #cam .cam-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .3s}
-  #cam .cam-flash.on{opacity:.8;transition:none}
-  #cam .cam-ult{position:absolute;right:12px;bottom:160px;width:68px;height:68px;border-radius:10px;border:3px solid #fff;object-fit:cover;display:none}
   .btn{display:block;width:100%;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:700;color:#fff;background:var(--azul2);margin-top:12px;cursor:pointer}
   .btn.rojo{background:var(--rojo)}.btn.verde{background:var(--verde)}.btn.wa{background:#128c7e}.btn.sec{background:#fff;color:var(--azul2);border:2px solid var(--azul2)}.btn.chico{padding:10px;font-size:15px;margin-top:8px}
   .btn:disabled{opacity:.5}
@@ -253,7 +235,7 @@
     </div>
     <!-- v3.15: botón visible para cambiar de caseta (sigue pidiendo usuario y contraseña de administrador) -->
     <button class="btn sec" style="margin-top:24px" onclick="salir()">🔒 Cerrar sesión / cambiar de caseta</button>
-    <p class="mini centro">Consignas GECEM v3.45 (instalable)</p>
+    <p class="mini centro">Consignas GECEM v3.44 (instalable)</p>
     <div class="card" id="candado" style="display:none;background:#fff7e6;border-color:var(--ambar)">
       <div class="mini"><b>🔒 Solo el administrador puede cerrar la sesión de la caseta.</b> Escribe su usuario y contraseña.</div>
       <div class="dos">
@@ -367,7 +349,7 @@
     <input type="file" id="archivo" accept="image/*" capture="environment" style="display:none" onchange="fotoElegida(this)">
     <input type="file" id="galeria" accept="image/*" multiple style="display:none" onchange="fotoElegida(this)">
     <div class="dos" id="f-fotos">
-      <button class="btn rojo" id="btn-tomar" onclick="tomarFotoConsigna()">📷 Tomar foto</button>
+      <button class="btn rojo" id="btn-tomar" onclick="document.getElementById('archivo').click()">📷 Tomar foto</button>
       <button class="btn sec" onclick="document.getElementById('galeria').click()">🖼 De la galería</button>
     </div>
     <div class="mini" style="margin-top:6px" id="f-ayuda">Puedes agregar varias fotos (hasta 8). Toca ✕ para quitar una.</div>
@@ -640,20 +622,6 @@
   </main>
 </div>
 
-<!-- v3.45: cámara dentro de la app. Con la cámara de Android, el A07 se quedaba sin memoria, Android cerraba Chrome y la foto se perdía -->
-<div id="cam">
-  <video id="cam-video" playsinline muted autoplay></video>
-  <div class="cam-top"><span id="cam-titulo">Foto</span><span id="cam-cuenta"></span></div>
-  <div class="cam-msg" id="cam-msg">Abriendo cámara…</div>
-  <img class="cam-ult" id="cam-ult" alt="">
-  <div class="cam-flash" id="cam-flash"></div>
-  <div class="cam-bar">
-    <button class="cam-cancel" onclick="camCancelar()">✕ Cancelar</button>
-    <button class="cam-shot" id="cam-shot" onclick="camDisparar()" aria-label="Tomar foto"></button>
-    <button class="cam-ok" id="cam-ok" onclick="camListo()" disabled>✔ Listo</button>
-  </div>
-  <div class="cam-alt" onclick="camNativa()">¿No se ve la cámara? Toca aquí para usar la del celular</div>
-</div>
 <script>
 // ============================================================
 var URL_APP = 'https://script.google.com/macros/s/AKfycbzn2N3ZLS5FOkd2zQk-f1upuXtaLaYulNNJb4Xoj6V9k6hZgHP8mA08ndqV1Ju788-2nw/exec';
@@ -976,9 +944,7 @@ function pintarRelevo() {
 function fotoRelevo(slot) {
   var inp = document.getElementById('rv-archivo');
   inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; cargando(true, 'Preparando foto…'); comprimir(f, 1024, 0.68).then(function (b) { S.relevo.fotos[slot] = b; pintarRelevo(); }).catch(function (e) { err('err-foto', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; }); };
-  // v3.45: cámara dentro de la app
-  var tit = { entra: 'Guardia que entra', sale: 'Guardia que sale', caseta: 'Caseta en orden' }[slot] || 'Foto';
-  tomarFotos({ max: 1, titulo: tit, errId: 'err-foto' }, inp).then(function (f) { if (f && f[0]) { S.relevo.fotos[slot] = f[0]; pintarRelevo(); } }).catch(function (e) { err('err-foto', 'No se pudo tomar la foto: ' + e.message); });
+  inp.click();
 }
 // v3.30: tarjeta de cambio de turno en Hoy
 function pintarRelevoHoy() {
@@ -1140,13 +1106,7 @@ function restaurarBorradorPaq() {
 // v3.43: de dónde viene la foto (cámara o galería). Si viene de la cámara se guarda una copia en Descargas del celular
 // (en Samsung se ve en Galería > Descargas o en Mis archivos) para poder elegirla después desde Galería si algo se traba.
 S.fotoOrigen = 'camara';
-function fotoPaqDesde(origen) {
-  S.fotoOrigen = origen; guardarBorradorPaq();
-  if (origen === 'galeria') return document.getElementById('pq-galeria').click();
-  // v3.45: cámara dentro de la app
-  tomarFotos({ max: 1, titulo: 'Foto del paquete', errId: 'err-paq' }, document.getElementById('pq-archivo')).then(function (f) { if (f && f[0]) paqueteFotoLista(f[0], true); })
-    .catch(function (e) { err('err-paq', 'No se pudo tomar la foto: ' + e.message); });
-}
+function fotoPaqDesde(origen) { S.fotoOrigen = origen; guardarBorradorPaq(); document.getElementById(origen === 'galeria' ? 'pq-galeria' : 'pq-archivo').click(); }
 function guardarCopiaFoto(blob, nombre) {
   try {
     var u = URL.createObjectURL(blob), a = document.createElement('a');
@@ -1161,15 +1121,14 @@ function paqueteFotoElegida(inp) {
   var deCamara = inp.id === 'pq-archivo';
   err('err-paq', '');
   cargando(true, 'Preparando foto…');
-  comprimir(f, 1024, 0.68).then(function (b) { return paqueteFotoLista(b, deCamara); }).catch(function (e) { err('err-paq', 'No se pudo leer la foto (' + e.message + '). Intenta de nuevo o elígela de la galería.'); reportarErrorApp('paquete_foto', e.message + ' · ' + (f.type || '?') + ' ' + Math.round((f.size || 0) / 1024) + 'KB'); })
+  comprimir(f, 1024, 0.68).then(function (b) {
+    S.paqBlob = b; pintarMiniPaquete();
+    var nota = document.getElementById('pq-copia-nota');
+    if (deCamara && guardarCopiaFoto(b, nombreFoto('paquete', document.getElementById('pq-casa').value))) { nota.innerHTML = '📥 Copia de la foto guardada en <b>Descargas</b> del celular.'; nota.style.display = ''; }
+    else nota.style.display = 'none';
+    return blobADataURL(b).then(function (d) { guardarBorradorPaq(d.length < 1500000 ? d : ''); });
+  }).catch(function (e) { err('err-paq', 'No se pudo leer la foto (' + e.message + '). Intenta de nuevo o elígela de la galería.'); reportarErrorApp('paquete_foto', e.message + ' · ' + (f.type || '?') + ' ' + Math.round((f.size || 0) / 1024) + 'KB'); })
     .finally(function () { cargando(false); inp.value = ''; });
-}
-function paqueteFotoLista(b, deCamara) {
-  S.paqBlob = b; pintarMiniPaquete(); err('err-paq', '');
-  var nota = document.getElementById('pq-copia-nota');
-  if (deCamara && guardarCopiaFoto(b, nombreFoto('paquete', document.getElementById('pq-casa').value))) { nota.innerHTML = '📥 Copia de la foto guardada en <b>Descargas</b> del celular.'; nota.style.display = ''; }
-  else nota.style.display = 'none';
-  return blobADataURL(b).then(function (d) { guardarBorradorPaq(d.length < 1500000 ? d : ''); });
 }
 function pintarMiniPaquete() {
   var g = document.getElementById('pq-minis'); g.innerHTML = '';
@@ -1234,7 +1193,7 @@ function avisoPaq(txt) {
 // v3.34: los errores que ve el guardia en el celular quedan en el registro del servidor (para poder revisarlos)
 function reportarErrorApp(donde, msg) {
   // v3.42: si no hay señal, el error se guarda en el celular y se manda en cuanto vuelva la conexión
-  var e = { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.45', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120), cuando: new Date().toTimeString().slice(0, 5) };
+  var e = { token: S.token, donde: donde, msg: String(msg || '').slice(0, 300), guardia: S.guardia || '', ver: '3.44', red: (navigator.connection && navigator.connection.effectiveType) || '', ua: navigator.userAgent.slice(0, 120), cuando: new Date().toTimeString().slice(0, 5) };
   try { llamar('error_app', e).catch(function () { guardarErrorPendiente(e); }); } catch (x) { guardarErrorPendiente(e); }
 }
 function guardarErrorPendiente(e) { try { var l = JSON.parse(ls('cg_err_cola') || '[]'); l.push(e); ls('cg_err_cola', JSON.stringify(l.slice(-10))); } catch (x) {} }
@@ -1304,12 +1263,7 @@ function pedirFotoEntrega(q, galeria) {
     comprimir(f, 1024, 0.68).then(function (b) { S.entrega = { id: q.id, blob: b }; if (!galeria) guardarCopiaFoto(b, nombreFoto('entrega', q.casa)); pintarPaquetes((S.estado && S.estado.paquetes) || []); })
       .catch(function (e) { err('err-paq', 'No se pudo leer la foto: ' + e.message); }).finally(function () { cargando(false); inp.value = ''; });
   };
-  if (galeria) return inp.click();
-  // v3.45: cámara dentro de la app
-  tomarFotos({ max: 1, titulo: 'Entrega · casa ' + (q.casa || ''), errId: 'err-paq' }, inp).then(function (f) {
-    if (!f || !f[0]) return;
-    S.entrega = { id: q.id, blob: f[0] }; guardarCopiaFoto(f[0], nombreFoto('entrega', q.casa)); pintarPaquetes((S.estado && S.estado.paquetes) || []);
-  }).catch(function (e) { err('err-paq', 'No se pudo tomar la foto: ' + e.message); });
+  inp.click();
 }
 function entregarPaquete(q) {
   if (S.entregando) return;   // v3.40: doble toque en Confirmar entrega
@@ -1557,112 +1511,6 @@ function agregarCono(cono, casa) {
 }
 function leerConos() {
   return Array.prototype.slice.call(document.querySelectorAll('#f-conos-lista .fila-cono')).map(function (d) { return { cono: d.querySelector('.cono').value.trim(), casa: d.querySelector('.casa').value.trim() }; }).filter(function (x) { return x.cono || x.casa; });
-}
-
-// ===================== v3.45: CÁMARA DENTRO DE LA APP =====================
-// Antes "Tomar foto" abría la cámara de Android. En el Samsung A07 eso deja sin memoria al celular: Android cierra Chrome
-// por detrás y al regresar sale "Memoria insuficiente para completar la operación anterior" y la foto se pierde.
-// Ahora la cámara se abre aquí mismo (la app nunca se va a segundo plano). Si el celular no lo permite, cae sola a la cámara de Android.
-var CAM = { st: null, fotos: [], max: 1, res: null, rej: null, ocupado: false, abierta: false, forzarNativa: false };
-function camaraSoportada() { return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
-function camaraApp(opc) {
-  opc = opc || {};
-  if (!camaraSoportada() || CAM.forzarNativa) return Promise.reject(new Error('nativa'));
-  if (CAM.abierta) camCerrar_();
-  return new Promise(function (res, rej) {
-    CAM.fotos = []; CAM.max = Math.max(1, opc.max || 1); CAM.res = res; CAM.rej = rej; CAM.ocupado = false; CAM.abierta = true;
-    document.getElementById('cam-titulo').textContent = opc.titulo || 'Foto';
-    document.getElementById('cam-msg').textContent = 'Abriendo cámara…'; document.getElementById('cam-msg').style.display = '';
-    document.getElementById('cam-ult').style.display = 'none';
-    document.getElementById('cam-shot').disabled = true;
-    camCuenta_();
-    document.getElementById('cam').classList.add('on');
-    var v = document.getElementById('cam-video');
-    var pide = function (c) { return navigator.mediaDevices.getUserMedia({ audio: false, video: c }); };
-    pide({ facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } })
-      .catch(function (e) { if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e; return pide(true); })
-      .then(function (st) {
-        if (!CAM.abierta) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
-        CAM.st = st; v.srcObject = st;
-        var p = v.play(); if (p && p.catch) p.catch(function () {});
-        var listo = function () { document.getElementById('cam-msg').style.display = 'none'; document.getElementById('cam-shot').disabled = false; };
-        if (v.readyState >= 2 && v.videoWidth) listo(); else v.onloadeddata = listo;
-        setTimeout(function () { if (CAM.abierta && CAM.st && !v.videoWidth) document.getElementById('cam-msg').textContent = 'La cámara no responde. Toca abajo "usar la del celular".'; }, 6000);
-      })
-      .catch(function (e) {
-        var n = (e && (e.name || e.message)) || 'error';
-        camCerrar_(); CAM.rej = null;
-        if (n === 'NotAllowedError') alert('La app no tiene permiso para usar la cámara. Toca otra vez Tomar foto y se abrirá la cámara del celular.\n\nPara arreglarlo: en Chrome toca el candado (o ⋮ › Configuración del sitio) › Cámara › Permitir.');
-        rej(new Error('nativa:' + n));
-      });
-  });
-}
-function camCuenta_() {
-  var n = CAM.fotos.length, ok = document.getElementById('cam-ok');
-  document.getElementById('cam-cuenta').textContent = CAM.max > 1 ? n + ' foto' + (n === 1 ? '' : 's') : '';
-  ok.disabled = !n; ok.textContent = n > 1 ? '✔ Listo (' + n + ')' : '✔ Listo';
-}
-function camDisparar() {
-  var v = document.getElementById('cam-video');
-  if (CAM.ocupado || !CAM.st || !v.videoWidth) return;
-  if (CAM.fotos.length >= CAM.max) return camListo();
-  CAM.ocupado = true;
-  var fl = document.getElementById('cam-flash'); fl.classList.add('on'); setTimeout(function () { fl.classList.remove('on'); }, 60);
-  try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
-  var w = v.videoWidth, h = v.videoHeight, e2 = Math.min(1, 1024 / Math.max(w, h)), c = document.createElement('canvas');
-  c.width = Math.round(w * e2); c.height = Math.round(h * e2);
-  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-  c.toBlob(function (b) {
-    c.width = c.height = 0; CAM.ocupado = false;
-    if (!b) return;
-    CAM.fotos.push(b);
-    var u = document.getElementById('cam-ult'); u.src = URL.createObjectURL(b); u.style.display = 'block';
-    camCuenta_();
-    if (CAM.fotos.length >= CAM.max) setTimeout(camListo, 250);
-  }, 'image/jpeg', 0.72);
-}
-function camCerrar_() {
-  CAM.abierta = false;
-  try { if (CAM.st) CAM.st.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
-  CAM.st = null;
-  var v = document.getElementById('cam-video'); v.onloadeddata = null; try { v.srcObject = null; } catch (e) {}
-  document.getElementById('cam').classList.remove('on');
-}
-function camListo() { var f = CAM.fotos.slice(), r = CAM.res; CAM.fotos = []; CAM.res = CAM.rej = null; camCerrar_(); if (r) r(f); }
-function camCancelar() { camListo(); }   // conserva las que ya tomó
-function camNativa() { var f = CAM.fotos.slice(), r = CAM.res, j = CAM.rej; CAM.fotos = []; CAM.res = CAM.rej = null; camCerrar_(); if (f.length && r) { r(f); return; } if (j) j(new Error('nativa')); }
-// Si el guardia sale de la app con la cámara abierta, se apaga (libera memoria y la cámara) y se quedan las fotos que ya tomó
-document.addEventListener('visibilitychange', function () { if (document.hidden && CAM.abierta) camListo(); });
-// Botón atrás de Android con la cámara abierta: la cierra en lugar de salir de la app
-window.addEventListener('popstate', function () { if (CAM.abierta) camListo(); });
-// Abre la cámara de la app; si no se puede, usa el input de siempre (cámara de Android). Devuelve las fotos, o null si se fue por la cámara de Android
-function tomarFotos(opc, inputNativo) {
-  try { history.pushState({ cam: 1 }, ''); } catch (e) {}
-  return camaraApp(opc).then(function (f) {
-    try { if (history.state && history.state.cam) history.back(); } catch (e) {}
-    return f;
-  }).catch(function (e) {
-    try { if (history.state && history.state.cam) history.back(); } catch (e2) {}
-    if (/^nativa/.test(e.message)) {
-      if (e.message !== 'nativa') {
-        // la cámara de la app falló: en esta sesión se usa la de Android (el navegador puede bloquear abrirla sin otro toque)
-        CAM.forzarNativa = true; reportarErrorApp('camara_app', e.message);
-        if (opc && opc.errId) err(opc.errId, 'Si no se abrió la cámara, toca otra vez el botón de la foto.');
-      }
-      inputNativo.click(); return null;
-    }
-    throw e;
-  });
-}
-function tomarFotoConsigna() {
-  var libres = 8 - S.blobs.length;
-  if (libres <= 0) return err('err-foto', 'Máximo 8 fotos por consigna.');
-  err('err-foto', '');
-  tomarFotos({ max: libres, titulo: (S.actual && S.actual.titulo) || 'Foto', errId: 'err-foto' }, document.getElementById('archivo')).then(function (f) {
-    if (!f || !f.length) return;
-    f.slice(0, libres).forEach(function (b) { S.blobs.push(b); });
-    pintarMiniaturas();
-  }).catch(function (e) { err('err-foto', 'No se pudo tomar la foto: ' + e.message); });
 }
 function fotoElegida(inp) {
   var files = Array.prototype.slice.call(inp.files || []); if (!files.length) return;
