@@ -47,3 +47,9 @@ y cada 10 min manda la lista de participantes del grupo para ligar número ↔ u
 - Los mensajes de Operación pueden llevar documento adjunto (`archivo_id` → se manda como documento de WhatsApp).
 - `/actualizar` baja `cotizador/` y lanza `instalar-cotizador.sh` fuera del servicio (`systemd-run`): instala LibreOffice Calc sin interfaz y un entorno de Python (`/opt/puente-gecem/pyenv`) con openpyxl 3.1 y Pillow. La primera vez tarda unos minutos; avance en `/log`. La página de estado muestra "Cotizador: 🟢 listo".
 - Las fotos de productos se bajan de la app (`/cot-img/…`) la primera vez que se usan y se guardan en `datos/cot-img`.
+
+## Gecem SG (v1.11)
+
+1. Actualizar el puente: `http://IP:3000/actualizar?k=PT-...`
+2. En el puente: `http://IP:3000/gecemsg?k=PT-...` → Dirección `https://gecem-sg.vercel.app` y la clave del puente de Gecem SG → Guardar. Debe decir "🟢 Gecem SG responde".
+3. Gecem SG manda a cada grupo de WhatsApp con el nombre exacto que se puso en el fraccionamiento.

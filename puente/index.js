@@ -1,5 +1,5 @@
 // ============================================================
-//  PUENTE WHATSAPP — Consignas GECEM + Operación GECEM (v1.8: + cotizaciones)
+//  PUENTE WHATSAPP — Consignas GECEM + Operación GECEM + Gecem SG (v1.11)
 //  Corre en un servidor (VPS). Usa el celular "GECEM Evidencias" (WhatsApp Web).
 //  Cada 30 s pregunta a la app qué evidencias faltan por publicar, manda la(s) foto(s)
 //  con el texto al grupo de la mesa directiva y le avisa a la app que ya quedó.
@@ -200,6 +200,55 @@ async function opCiclo() {
   } catch (e) { opEstado.ultimoError = e.message; log('Ciclo Operación:', e.message); }
   finally { opOcupado = false; }
 }
+// ---------- v1.11: Gecem SG (tercera fuente) ----------
+// Config en datos/gecemsg.json: { url: "https://<gecem-sg>", clave: "<PUENTE_CLAVE>" }. Se llena en /gecemsg?k=...
+// La clave viaja en un encabezado, nunca en la dirección.
+const GS_FILE = path.join(DATOS, 'gecemsg.json');
+let GS = { url: '', clave: '' };
+try { GS = Object.assign(GS, JSON.parse(fs.readFileSync(GS_FILE, 'utf8'))); } catch (e) { /* sin configurar */ }
+const gsActivo = () => !!(GS.url && GS.clave);
+let gsEstado = { ultimoCiclo: null, enviados: 0, errores: 0, ultimoError: '' };
+async function gsApi(accion, params) {
+  const r = await fetch(GS.url.replace(/\/$/, '') + '/api/puente', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + GS.clave },
+    body: JSON.stringify(Object.assign({ accion }, params || {})),
+  });
+  const txt = await r.text();
+  let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('Gecem SG: respuesta no válida: ' + txt.slice(0, 120)); }
+  if (!j.ok) throw new Error('Gecem SG: ' + (j.error || r.status));
+  return j;
+}
+let gsOcupado = false;
+async function gsCiclo() {
+  if (!gsActivo() || gsOcupado || !estado.listo) return; gsOcupado = true;
+  try {
+    const r = await gsApi('pendientes', {});
+    gsEstado.ultimoCiclo = new Date().toISOString();
+    if (!estado.grupos.length) await cargarGrupos();
+    for (const p of r.pendientes || []) {
+      try {
+        const gid = await idGrupo(p.grupo);
+        const fotos = (p.fotos || []).filter(f => f.b64);
+        if (!fotos.length) await client.sendMessage(gid, p.texto);
+        else {
+          for (let i = 0; i < fotos.length; i++) {
+            const media = new MessageMedia(fotos[i].tipo || 'image/jpeg', fotos[i].b64, fotos[i].nombre || 'evidencia.jpg');
+            await client.sendMessage(gid, media, i === 0 ? { caption: p.texto } : {});
+            if (i < fotos.length - 1) await new Promise(res => setTimeout(res, 1500));
+          }
+        }
+        await gsApi('marcar', { id: p.id, ok: true });
+        gsEstado.enviados++; log('Gecem SG -> "' + p.grupo + '": ' + p.texto.slice(0, 50).replace(/\n/g, ' '));
+        await new Promise(res => setTimeout(res, 3000)); // pausa entre envíos: no parecer spam
+      } catch (e) {
+        gsEstado.errores++; gsEstado.ultimoError = e.message; log('ERROR Gecem SG', p.id, ':', e.message);
+        try { await gsApi('marcar', { id: p.id, ok: false, error: e.message }); } catch (e2) { log('No pude marcar:', e2.message); }
+      }
+    }
+  } catch (e) { gsEstado.ultimoError = e.message; log('Ciclo Gecem SG:', e.message); }
+  finally { gsOcupado = false; }
+}
 // ---------- v1.8: cotizaciones de Operación (plantilla Python + LibreOffice en este servidor) ----------
 const COT_DIR = path.join(__dirname, 'cotizador');
 const COT_IMG = path.join(DATOS, 'cot-img');      // fotos de productos (se bajan de la app la primera vez)
@@ -347,6 +396,23 @@ http.createServer(async (req, res) => {
       '<p>' + (prueba || 'Sin configurar.') + '</p>' +
       '<p>Último ciclo: ' + (opEstado.ultimoCiclo || '—') + ' · último tick: ' + (opEstado.ultimoTick || '—') + '<br>Enviados: ' + opEstado.enviados + ' · recibidos: ' + opEstado.recibidos + ' · errores: ' + opEstado.errores + '</p>' +
       (opEstado.ultimoError ? '<p style="color:#b00">Último error: ' + opEstado.ultimoError + '</p>' : '') + '<p><a href="/?k=' + PUENTE_KEY + '">← estado general</a></p>';
+  } else if (u.pathname === '/gecemsg') {
+    // v1.11: conectar con Gecem SG (dirección y clave del puente)
+    if (req.method === 'POST') {
+      let body = ''; await new Promise(res => { req.on('data', d => body += d); req.on('end', res); });
+      const f = new URLSearchParams(body);
+      // Si la clave se deja vacía, se conserva la guardada.
+      GS = { url: String(f.get('url') || '').trim(), clave: String(f.get('clave') || '').trim() || GS.clave };
+      try { fs.mkdirSync(DATOS, { recursive: true }); fs.writeFileSync(GS_FILE, JSON.stringify(GS), { mode: 0o600 }); } catch (e) { log('No pude guardar gecemsg.json:', e.message); }
+      log('Gecem SG configurado: ' + (GS.url || '(vacío)'));
+    }
+    let prueba = '';
+    if (gsActivo()) { try { const r = await gsApi('pendientes', {}); prueba = '🟢 Gecem SG responde · por mandar: ' + (r.pendientes || []).length; } catch (e) { prueba = '🔴 ' + e.message; } }
+    const esc = t => String(t || '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+    cuerpo = '<h2>Gecem SG</h2><form method="post"><label>Dirección de Gecem SG<br><input name="url" value="' + esc(GS.url) + '" style="width:100%"></label><br><br>' +
+      '<label>Clave del puente<br><input name="clave" type="password" value="" placeholder="' + (GS.clave ? '(guardada; escribe otra para cambiarla)' : '') + '" style="width:100%"></label><br><br><button>Guardar</button></form>' +
+      '<p>' + (prueba || 'Sin configurar.') + '</p><p>Último ciclo: ' + (gsEstado.ultimoCiclo || '—') + '<br>Enviados: ' + gsEstado.enviados + ' · errores: ' + gsEstado.errores + '</p>' +
+      (gsEstado.ultimoError ? '<p style="color:#b00">Último error: ' + esc(gsEstado.ultimoError) + '</p>' : '') + '<p><a href="/?k=' + PUENTE_KEY + '">← estado general</a></p>';
   } else if (u.pathname === '/log') {
     // v1.1: últimas líneas del registro, para diagnosticar sin entrar por SSH
     let txt = '';
@@ -357,10 +423,11 @@ http.createServer(async (req, res) => {
     const img = await QRCode.toDataURL(estado.qr, { width: 320 });
     cuerpo = '<h2>Escanea con el celular GECEM Evidencias</h2><p>WhatsApp → ⋮ → Dispositivos vinculados → Vincular un dispositivo</p><img src="' + img + '"><p>La página se actualiza sola cada 20 s.</p><meta http-equiv="refresh" content="20">';
   } else {
-    cuerpo = '<h2>Puente WhatsApp — Consignas GECEM · v1.10</h2><p>Estado: <b>' + (estado.listo ? '🟢 conectado' : estado.qr ? '🟡 esperando QR (abre /qr)' : '🔴 iniciando…') + '</b></p>' +
+    cuerpo = '<h2>Puente WhatsApp — Consignas GECEM · v1.11</h2><p>Estado: <b>' + (estado.listo ? '🟢 conectado' : estado.qr ? '🟡 esperando QR (abre /qr)' : '🔴 iniciando…') + '</b></p>' +
       '<p>Último ciclo: ' + (estado.ultimoCiclo || '—') + '<br>Enviados desde que arrancó: ' + estado.enviados + ' · errores: ' + estado.errores + '</p>' +
       (estado.ultimoError ? '<p style="color:#b00">Último error: ' + estado.ultimoError + '</p>' : '') +
       '<p>Operación GECEM: ' + (opActivo() ? '🟢 configurada · enviados ' + opEstado.enviados + ' · recibidos ' + opEstado.recibidos + (opEstado.ultimoError ? ' · <span style="color:#b00">' + opEstado.ultimoError + '</span>' : '') : 'sin configurar') + ' · <a href="/operacion?k=' + PUENTE_KEY + '">configurar</a></p>' +
+      '<p>Gecem SG: ' + (gsActivo() ? '🟢 configurado · enviados ' + gsEstado.enviados + (gsEstado.ultimoError ? ' · <span style="color:#b00">' + gsEstado.ultimoError + '</span>' : '') : '⚪ sin configurar (abre /gecemsg)') + '</p>' +
       '<p>Cotizador: ' + (cotListo() ? '🟢 listo' : '🟡 sin LibreOffice todavía (corre /actualizar)') + ' · hechas ' + cotEstado.hechas + (cotEstado.ultimoError ? ' · <span style="color:#b00">' + cotEstado.ultimoError + '</span>' : '') + '</p>' +
       '<p>Grupos que ve este WhatsApp:<br>' + (estado.grupos.map(g => '• ' + g).join('<br>') || '(aún no)') + '</p><meta http-equiv="refresh" content="30">';
   }
@@ -377,3 +444,6 @@ setInterval(opCiclo, CADA_MS);
 setTimeout(opCiclo, 15000);
 setInterval(opTick, 60000);
 setTimeout(opTick, 20000);
+// v1.11: Gecem SG
+setInterval(gsCiclo, CADA_MS);
+setTimeout(gsCiclo, 25000);
